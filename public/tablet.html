@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PontoBack | Terminal de Portaria</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #10b981; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: white; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+
+        .container { text-align: center; width: 90%; max-width: 500px; }
+
+        /* Video Scanner */
+        .scanner-box { position: relative; width: 100%; aspect-ratio: 1; background: #000; border-radius: 24px; border: 4px solid var(--card); overflow: hidden; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .overlay { position: absolute; inset: 0; border: 2px solid var(--primary); opacity: 0.5; box-shadow: inset 0 0 100px rgba(79, 70, 229, 0.2); pointer-events: none; }
+
+        /* Status & Feedback */
+        .info-card { margin-top: 2rem; background: var(--card); padding: 1.5rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); }
+        .school-name { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+        .status-msg { font-size: 1.2rem; font-weight: 700; margin-top: 5px; }
+
+        /* Modal de Configuração Inicial */
+        #config-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+        .btn-config { background: var(--primary); color: white; padding: 15px 30px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; }
+
+        /* Animação de Sucesso */
+        .success-flash { position: fixed; inset: 0; background: var(--success); display: none; z-index: 2000; align-items: center; justify-content: center; font-size: 5rem; animation: fadeOut 1s forwards; }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<div id="config-overlay">
+    <i class="fas fa-tablet-alt" style="font-size: 4rem; color: var(--primary); margin-bottom: 1.5rem;"></i>
+    <h2 style="margin-bottom: 1rem;">Terminal Não Configurado</h2>
+    <p style="color: #94a3b8; text-align: center; margin-bottom: 2rem;">Aponte a câmera para o QR Code de ativação no painel administrativo.</p>
+    <button class="btn-config" onclick="iniciarScannerConfig()">Escanear Configuração</button>
+</div>
+
+<div id="flash" class="success-flash"><i class="fas fa-check-circle"></i></div>
+
+<div class="container">
+    <div class="scanner-box">
+        <video id="preview"></video>
+        <div class="overlay"></div>
+    </div>
+
+    <div class="info-card">
+        <p class="school-name" id="display-escola">Aguardando Configuração...</p>
+        <p class="status-msg" id="display-status">Posicione o seu QR Code</p>
+    </div>
+
+    <p style="margin-top: 2rem; color: #475569; font-size: 0.7rem;">PontoBack Escolar &copy; 2026</p>
+</div>
+
+<script>
+    let scanner = new Instascan.Scanner({ video: document.getElementById('preview'), mirror: false });
+    let config = JSON.parse(localStorage.getItem('pontoback_config') || 'null');
+
+    // Inicialização
+    if (config) {
+        document.getElementById('config-overlay').style.display = 'none';
+        document.getElementById('display-escola').innerText = config.nome;
+        iniciarFluxoFrequencia();
+    }
+
+    function iniciarScannerConfig() {
+        scanner.addListener('scan', function (content) {
+            try {
+                const data = JSON.parse(atob(content)); // Decodifica o Base64 do index.html
+                if (data.api) {
+                    localStorage.setItem('pontoback_config', JSON.stringify(data));
+                    alert("Terminal ativado com sucesso!");
+                    location.reload();
+                }
+            } catch (e) {
+                alert("QR Code de configuração inválido.");
+            }
+        });
+
+        Instascan.Camera.getCameras().then(cameras => {
+            if (cameras.length > 0) {
+                scanner.start(cameras[cameras.length - 1]); // Tenta usar a câmera traseira
+            }
+        });
+    }
+
+    function iniciarFluxoFrequencia() {
+        scanner.addListener('scan', function (matricula) {
+            registrarPresenca(matricula);
+        });
+
+        Instascan.Camera.getCameras().then(cameras => {
+            if (cameras.length > 0) {
+                scanner.start(cameras[cameras.length - 1]);
+            }
+        });
+    }
+
+    async function registrarPresenca(token) {
+        const statusEl = document.getElementById('display-status');
+        statusEl.innerText = "Processando...";
+        statusEl.style.color = "var(--primary)";
+
+        try {
+            const res = await fetch(`${config.api}/api/presenca/registrar`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    qr_token: token,
+                    dispositivo: "Tablet_Portaria_01",
+                    inst_id: config.inst_id
+                })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                exibirSucesso(data.aluno);
+            } else {
+                statusEl.innerText = data.erro || "Erro ao registrar";
+                statusEl.style.color = "red";
+                setTimeout(resetStatus, 3000);
+            }
+        } catch (e) {
+            statusEl.innerText = "Erro de Conexão";
+            setTimeout(resetStatus, 3000);
+        }
+    }
+
+    function exibirSucesso(nome) {
+        const flash = document.getElementById('flash');
+        const statusEl = document.getElementById('display-status');
+
+        flash.style.display = 'flex';
+        statusEl.innerText = `Bem-vindo, ${nome.split(' ')[0]}!`;
+        statusEl.style.color = "var(--success)";
+
+        // Som de confirmação (opcional)
+        const audio = new Audio('https://www.soundjay.com/buttons/beep-07a.mp3');
+        audio.play();
+
+        setTimeout(() => {
+            flash.style.display = 'none';
+            resetStatus();
+        }, 2000);
+    }
+
+    function resetStatus() {
+        document.getElementById('display-status').innerText = "Posicione o seu QR Code";
+        document.getElementById('display-status').style.color = "white";
+    }
+</script>
+
+</body>
+</html>

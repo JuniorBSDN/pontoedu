@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PontoBack | Admin Escolar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #4f46e5; --sidebar-bg: #0f172a; --bg: #f8fafc;
+            --text: #1e293b; --border: #e2e8f0; --success: #10b981; --danger: #ef4444;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+        .layout { display: flex; min-height: 100vh; }
+
+        /* Sidebar */
+        .sidebar { width: 280px; background: var(--sidebar-bg); color: white; padding: 2rem; position: fixed; height: 100vh; z-index: 100; }
+        .sidebar h2 { font-size: 1.5rem; margin-bottom: 2rem; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+        .nav-link { display: flex; align-items: center; gap: 12px; padding: 12px; color: #94a3b8; text-decoration: none; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: 0.3s; }
+        .nav-link:hover, .nav-link.active { background: #1e293b; color: white; }
+
+        /* Main Content */
+        .main { margin-left: 280px; padding: 3rem; width: calc(100% - 280px); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+
+        /* Stats Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem; }
+        .card { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .card h4 { color: #64748b; font-size: 0.875rem; margin-bottom: 8px; }
+        .card p { font-size: 1.8rem; font-weight: 700; color: var(--sidebar-bg); }
+
+        /* Seções */
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* Table Style */
+        .table-container { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f1f5f9; padding: 12px 20px; text-align: left; font-size: 0.85rem; color: #64748b; }
+        td { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 0.9rem; }
+
+        /* Buttons */
+        .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-ghost { background: #f1f5f9; color: var(--text); }
+
+        /* Modais */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background: white; padding: 2rem; border-radius: 16px; width: 500px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+        .form-group { margin-bottom: 1.2rem; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: #475569; }
+        .form-group input, .form-group select { width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; }
+
+        #qrcode-container { display: flex; justify-content: center; padding: 20px; background: white; border: 1px dashed var(--border); border-radius: 12px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="layout">
+    <aside class="sidebar">
+        <h2><i class="fas fa-graduation-cap"></i> PontoBack</h2>
+        <nav>
+            <div class="nav-link active" onclick="switchSection('turmas', this)"><i class="fas fa-school"></i> Turmas</div>
+            <div class="nav-link" onclick="switchSection('usuarios', this)"><i class="fas fa-users-cog"></i> Usuários</div>
+            <div class="nav-link" onclick="switchSection('relatorios', this)"><i class="fas fa-chart-line"></i> Relatórios</div>
+            <hr style="opacity: 0.1; margin: 1rem 0;">
+            <a href="gestor.html" class="nav-link"><i class="fas fa-user-graduate"></i> Gestão de Alunos</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <section id="section-turmas" class="section active">
+            <div class="header">
+                <h1>Turmas e Unidades</h1>
+                <button class="btn btn-primary" onclick="abrirModal('modalTurma')"><i class="fas fa-plus"></i> Nova Turma</button>
+            </div>
+            <div class="stats-grid">
+                <div class="card"><h4>Turmas Ativas</h4><p>0</p></div>
+                <div class="card"><h4>Alunos</h4><p>0</p></div>
+                <div class="card"><h4>Média Frequência</h4><p>0%</p></div>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Turma</th><th>Série</th><th>Turno</th><th>Ações</th></tr></thead>
+                    <tbody id="lista-turmas"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="section-usuarios" class="section">
+            <div class="header">
+                <h1>Gerenciar Usuários</h1>
+                <button class="btn btn-primary" onclick="abrirModal('modalUsuario')"><i class="fas fa-user-plus"></i> Novo Usuário</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Ações</th></tr></thead>
+                    <tbody id="lista-usuarios"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="section-relatorios" class="section">
+            <div class="header"><h1>Relatórios de Frequência</h1></div>
+            <div class="card">
+                <p style="font-size: 1rem; color: #64748b;">Selecione o período para gerar o PDF consolidado de faltas e presenças.</p>
+                <br>
+                <input type="month" class="btn btn-ghost" style="padding: 12px;">
+                <button class="btn btn-success"><i class="fas fa-file-pdf"></i> Exportar Relatório</button>
+            </div>
+        </section>
+    </main>
+</div>
+
+<div id="modalTurma" class="modal">
+    <div class="modal-content">
+        <h3><i class="fas fa-school"></i> Cadastrar Turma</h3><br>
+        <div class="form-group"><label>Nome da Turma</label><input type="text" id="t-nome" placeholder="Ex: 9º Ano A"></div>
+        <div class="form-group"><label>Série</label><input type="text" id="t-serie" placeholder="Ex: Ensino Fundamental"></div>
+        <div class="form-group">
+            <label>Turno</label>
+            <select id="t-turno"><option value="Manhã">Manhã</option><option value="Tarde">Tarde</option><option value="Noite">Noite</option></select>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button class="btn btn-success" style="flex: 1;" onclick="salvarTurma()">Salvar</button>
+            <button class="btn btn-ghost" style="flex: 1;" onclick="fecharModal('modalTurma')">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalUsuario" class="modal">
+    <div class="modal-content">
+        <h3><i class="fas fa-user-shield"></i> Novo Usuário do Sistema</h3><br>
+        <div class="form-group"><label>Nome Completo</label><input type="text" id="u-nome"></div>
+        <div class="form-group"><label>Login (E-mail ou CPF)</label><input type="text" id="u-login"></div>
+        <div class="form-group"><label>Senha</label><input type="password" id="u-senha"></div>
+        <div class="form-group">
+            <label>Perfil</label>
+            <select id="u-perfil">
+                <option value="ADMIN">Administrador Master</option>
+                <option value="GESTOR">Diretor / Coordenador</option>
+                <option value="PORTARIA">Tablet / Portaria</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+            <button class="btn btn-success" style="flex: 1;">Salvar Usuário</button>
+            <button class="btn btn-ghost" style="flex: 1;" onclick="fecharModal('modalUsuario')">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalQR" class="modal">
+    <div class="modal-content" style="text-align: center;">
+        <h3>Configurar Dispositivo</h3>
+        <p style="font-size: 0.8rem; color: #64748b; margin: 10px 0;">Use o Tablet da escola para ler este código e ativar o ponto de presença.</p>
+        <div id="qrcode-container"></div>
+        <br>
+        <button class="btn btn-primary" style="width: 100%;" onclick="fecharModal('modalQR')">Concluído</button>
+    </div>
+</div>
+
+<script>
+    function switchSection(target, element) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById('section-' + target).classList.add('active');
+
+        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+        element.classList.add('active');
+    }
+
+    function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function salvarTurma() {
+        // Lógica para enviar ao index.py
+        alert("Turma salva!");
+        fecharModal('modalTurma');
+    }
+
+    // Geração do Token de Ativação do Tablet
+    function gerarQRTablet(turmaId) {
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        const config = JSON.stringify({ id_turma: turmaId, modo: "FREQUENCIA_ESCOLAR" });
+        new QRCode(container, { text: btoa(config), width: 220, height: 220 });
+        abrirModal('modalQR');
+    }
+</script>
+
+</body>
+</html>
