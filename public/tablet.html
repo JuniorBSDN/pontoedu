@@ -156,6 +156,19 @@
         document.getElementById('display-status').innerText = "Posicione o seu QR Code";
         document.getElementById('display-status').style.color = "white";
     }
+    const config = JSON.parse(localStorage.getItem('ponto_config'));
+
+async function enviarPonto(token) {
+    await fetch(`${config.api}/api/presenca/registrar`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            qr_token: token,
+            inst_id: config.inst_id,
+            dispositivo: "Tablet_Entrada_01"
+        })
+    });
+}
 </script>
 
 </body>
