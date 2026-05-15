@@ -187,21 +187,13 @@
     }
 
     function gerarAtivacao(id, nome) {
-        document.getElementById('qr-inst-nome').innerText = nome;
-        const qrDiv = document.getElementById('qrcode');
-        qrDiv.innerHTML = "";
-
-        // Dados criptografados em Base64 para o Tablet ler
-        const payload = btoa(JSON.stringify({
-            inst_id: id,
-            nome: nome,
-            api: API_URL,
-            tipo: "SaaS_Escolar"
-        }));
-
-        new QRCode(qrDiv, { text: payload, width: 250, height: 250 });
-        abrirModal('modalQR');
-    }
+    const payload = btoa(JSON.stringify({
+        inst_id: id,
+        nome: nome,
+        api: "https://seu-backend.vercel.app"
+    }));
+    new QRCode(document.getElementById('qrcode'), { text: payload, width: 250, height: 250 });
+}
 
     function salvarInstituicao() {
         alert("Instituição cadastrada com sucesso! Agora você pode gerar o código de ativação.");
