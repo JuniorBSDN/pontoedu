@@ -3,168 +3,228 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoEdu | Terminal Tablet</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>PontoEdu | Administrativo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
     <style>
-        :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; --info: #3b82f6; }
-        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
-        .card { background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
-        button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; border: 2px solid #334155; }
-        #feedback {
-            display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            padding: 20px 40px; border-radius: 12px; font-size: 1.5rem; font-weight: bold;
-            z-index: 9999; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-            animation: slideDown 0.5s ease-out; white-space: pre-wrap;
+        :root {
+            --primary: #4f46e5; --sidebar-bg: #0f172a; --bg: #f8fafc;
+            --text: #1e293b; --border: #e2e8f0; --warning: #f59e0b; --danger: #ef4444;
         }
-        @keyframes slideDown { from { top: -100px; } to { top: 20px; } }
-        .info-text { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
-        #nome-unidade { color: var(--primary); font-weight: bold; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
+        .wrapper { display: flex; flex-direction: column; min-height: 100vh; }
+        .sidebar { background: var(--sidebar-bg); color: white; padding: 1.5rem; width: 100%; }
+        .main-content { flex: 1; padding: 1.5rem; }
+        @media (min-width: 1024px) {
+            .wrapper { flex-direction: row; }
+            .sidebar { width: 260px; height: 100vh; position: fixed; }
+            .main-content { margin-left: 260px; padding: 3rem; }
+        }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem; }
+        .card-tabela { background: white; border-radius: 12px; border: 1px solid var(--border); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
+        td { padding: 1.25rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .btn-icon { background: none; border: 1px solid var(--border); padding: 8px; border-radius: 6px; cursor: pointer; margin-right: 4px; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; padding: 1rem; }
+        .modal-content { background: white; width: 100%; max-width: 650px; padding: 2rem; border-radius: 16px; max-height: 90vh; overflow-y: auto; }
+        .form-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+        @media (min-width: 600px) { .form-grid { grid-template-columns: 1fr 1fr; } .full { grid-column: span 2; } }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #475569; }
+        input { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; }
+        .btn-save { background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 1.5rem; }
     </style>
 </head>
 <body>
 
-    <div id="feedback"></div>
+<div class="wrapper">
+    <nav class="sidebar"><h2 style="color: #818cf8;">PontoEdu<hr></h2></nav>
+    <main class="main-content">
+        <header>
+            <div><h1>Unidades e Clientes</h1><p style="color: #64748b;">Administre as filiais e senhas de acesso.</p></div>
+            <button onclick="abrirModal()" style="background:var(--primary); color:white; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:600;">
+                <i class="fas fa-plus"></i> Novo Colaborador
+            </button>
+        </header>
+        <div class="card-tabela">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Empresa / Endereço</th>
+                        <th>CNPJ / Contato</th>
+                        <th>Senha Tablet</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-clientes"></tbody>
+            </table>
+        </div>
+    </main>
+</div>
 
-    <div id="login-area" class="card">
+<div id="modalEmpresa" class="modal">
+    <div class="modal-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <h2 id="modal-titulo">Configurar Unidade</h2>
+            <button onclick="closeModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+        </div>
+        <form id="form-empresa">
+            <input type="hidden" id="edit-id">
+            <div class="form-grid">
+                <div class="form-group full"><label>Razão Social / Fantasia</label><input type="text" id="nome" required></div>
+                <div class="form-group"><label>CNPJ</label><input type="text" id="cnpj" required></div>
+                <div class="form-group"><label>Responsável</label><input type="text" id="responsavel" required></div>
+                <div class="form-group"><label>E-mail</label><input type="email" id="email" required></div>
+                <div class="form-group"><label>Telefone</label><input type="text" id="telefone" required></div>
+                <div class="form-group full"><label style="color:var(--primary)">Senha de Acesso ao Tablet</label><input type="text" id="senha_acesso" required></div>
+                <div class="form-group full"><label>Endereço Completo</label><input type="text" id="endereco" required></div>
+            </div>
+            <button type="submit" class="btn-save">Salvar Registro</button>
+        </form>
+    </div>
+</div>
+
+<div id="modalQR" class="modal">
+    <div class="modal-content" style="text-align:center">
         <h2>Ativar Tablet</h2>
-        <p class="info-text">Identifique a unidade para começar</p>
-        <input type="text" id="t-cnpj" placeholder="CNPJ da Unidade">
-        <input type="password" id="t-senha" placeholder="Senha de Acesso">
-        <button onclick="ativarTablet()">Ativar Dispositivo</button>
+        <div id="qrcode-container" style="display:inline-block; padding:20px; background:white; margin:20px 0;"></div>
+        <button onclick="document.getElementById('modalQR').style.display='none'" class="btn-save">Fechar</button>
     </div>
+</div>
 
-    <div id="ponto-area" class="card" style="display: none;">
-        <h2 id="nome-unidade">Unidade Carregando...</h2>
-        <p>Aponte seu QR Code para a câmera</p>
+<script>
+    const API_URL = "https://pontoback-tau.vercel.app/api";
+    let clientesCache = [];
 
-        <div id="reader"></div>
+    // CAMADA DE SEGURANÇA DO DONO
+    async function validarAcessoDono() {
+        const senha = prompt("Senha Administrativa:");
+        if (!senha) return window.location.reload(); // Evita entrar vazio
 
-        <p class="info-text">O sistema detectará entrada/saída automaticamente.</p>
-        <button onclick="sair()" style="margin-top: 20px; background: #334155; padding: 8px;">Sair / Trocar Unidade</button>
-    </div>
-
-    <script>
-        const API_URL = "https://pontoback-tau.vercel.app/api";
-        let config = JSON.parse(localStorage.getItem("config_tablet"));
-        let machineId = localStorage.getItem("machine_id") || "TAB-" + Math.random().toString(36).substr(2, 9).toUpperCase();
-
-        if (!localStorage.getItem("machine_id")) localStorage.setItem("machine_id", machineId);
-
-        function iniciar() {
-            if (config) {
-                document.getElementById('login-area').style.display = 'none';
-                document.getElementById('ponto-area').style.display = 'block';
-                document.getElementById('nome-unidade').innerText = config.nome;
-                startScanner();
+        try {
+            const res = await fetch(`${API_URL}/admin/login`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ senha })
+            });
+            if (!res.ok) {
+                alert("Acesso Negado!");
+                window.location.reload();
+            } else {
+                document.body.style.display = "block";
+                carregarEmpresas();
             }
+        } catch (e) {
+            alert("Erro de conexão com o servidor.");
         }
+    }
+    document.body.style.display = "none";
+    validarAcessoDono();
 
-        async function ativarTablet() {
-            const cnpj = document.getElementById('t-cnpj').value;
-            const senha = document.getElementById('t-senha').value;
+    // FUNÇÕES DE MODAL (ESSENCIAIS PARA FECHAR A JANELA)
+    function abrirModal() {
+        document.getElementById('form-empresa').reset();
+        document.getElementById('edit-id').value = ""; // MUITO IMPORTANTE: limpa o ID para novo cadastro
+        document.getElementById('modal-titulo').innerText = "Novo Cliente";
+        document.getElementById('modalEmpresa').style.display = 'flex';
+    }
 
-            try {
-                const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ cnpj, senha })
-                });
+    function closeModal() {
+        document.getElementById('modalEmpresa').style.display = 'none';
+        document.getElementById('form-empresa').reset();
+    }
 
-                if (res.ok) {
-                    const dados = await res.json();
-                    config = { id: dados.id, nome: dados.nome };
-                    localStorage.setItem("config_tablet", JSON.stringify(config));
+    async function carregarEmpresas() {
+        try {
+            const res = await fetch(`${API_URL}/clientes`);
+            clientesCache = await res.json();
+            const tabela = document.getElementById('lista-clientes');
+            tabela.innerHTML = clientesCache.map(emp => `
+                <tr>
+                    <td><strong>${emp.nome_fantasia || emp.nome || 'N/A'}</strong><br><small>${emp.endereco || ''}</small></td>
+                    <td><code>${emp.cnpj}</code></td>
+                    <td><span style="background:#e0e7ff; padding:5px; border-radius:5px;">${emp.senha_acesso || '---'}</span></td>
+                    <td>
+                        <button class="btn-icon" onclick="gerarQRAtivacao('${emp.id}')"><i class="fas fa-qrcode"></i></button>
+                        <button class="btn-icon" onclick="editarEmpresa('${emp.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon" onclick="excluirEmpresa('${emp.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
 
-                    await fetch(`${API_URL}/clientes/ativar-dispositivo`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            cliente_id: config.id,
-                            machine_id: machineId,
-                            modelo: "Tablet Terminal"
-                        })
-                    });
+    document.getElementById('form-empresa').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('edit-id').value;
+        const nomeValor = document.getElementById('nome').value;
 
-                    location.reload();
-                } else {
-                    mostrarFeedback("Acesso negado!", "erro");
-                }
-            } catch (e) {
-                mostrarFeedback("Erro ao conectar com servidor", "erro");
-            }
-        }
+        const dados = {
+            nome: nomeValor,
+            nome_fantasia: nomeValor,
+            cnpj: document.getElementById('cnpj').value,
+            responsavel: document.getElementById('responsavel').value,
+            email: document.getElementById('email').value,
+            telefone: document.getElementById('telefone').value,
+            senha_acesso: document.getElementById('senha_acesso').value,
+            endereco: document.getElementById('endereco').value
+        };
 
-        function startScanner() {
-            const scanner = new Html5QrcodeScanner("reader", {
-                fps: 10,
-                qrbox: { width: 250, height: 250 }
+        const url = id ? `${API_URL}/clientes/${id}` : `${API_URL}/clientes`;
+        const method = id ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(dados)
             });
 
-            scanner.render(async (cpfLido) => {
-                // EVITA DUPLO CLIQUE OU LEITURA REPETIDA
-                if (window.processandoPonto) return;
-                window.processandoPonto = true;
-
-                // Garante que o CPF enviado seja apenas números (IMPORTANTE)
-                const cpfLimpo = cpfLido.replace(/\D/g, "");
-
-                try {
-                    const res = await fetch(`${API_URL}/ponto/registrar`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            id_cliente: config.id,
-                            id_funcionario: cpfLimpo,
-                            machine_id: machineId,
-                            timestamp_local: new Date().toISOString(),
-                            geo: "0,0"
-                        })
-                    });
-
-                    const data = await res.json();
-
-                    if (res.ok) {
-                        // O index.py deve retornar 'tipo' e 'horas'
-                        let msg = data.tipo === "ENTRADA"
-                            ? `BOM TRABALHO!\nEntrada: ${data.funcionario || ''}`
-                            : `ATÉ LOGO!\nSaída: ${data.horas || 0}h trabalhadas`;
-
-                        mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
-                    } else {
-                        mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
-                    }
-                } catch (e) {
-                    mostrarFeedback("FALHA NA CONEXÃO", "erro");
-                } finally {
-                    // Espera 5 segundos para permitir nova leitura (tempo para o funcionário sair da frente)
-                    setTimeout(() => { window.processandoPonto = false; }, 5000);
-                }
-            });
-        }
-
-        function mostrarFeedback(mensagem, tipo) {
-            const fb = document.getElementById('feedback');
-            fb.innerText = mensagem;
-            fb.style.display = 'block';
-
-            if (tipo === "sucesso") fb.style.background = "var(--success)";
-            else if (tipo === "info") fb.style.background = "var(--info)";
-            else fb.style.background = "var(--danger)";
-
-            setTimeout(() => { fb.style.display = 'none'; }, 4000);
-        }
-
-        function sair() {
-            if(confirm("Deseja desativar este tablet?")) {
-                localStorage.clear();
-                location.reload();
+            if(res.ok) {
+                closeModal(); // AGORA VAI FECHAR PORQUE A FUNÇÃO EXISTE ACIMA
+                carregarEmpresas();
+            } else {
+                alert("Erro ao salvar no servidor!");
             }
+        } catch (err) {
+            alert("Erro de conexão!");
         }
+    };
 
-        iniciar();
-    </script>
+    function editarEmpresa(id) {
+        const emp = clientesCache.find(c => c.id === id);
+        if(!emp) return;
+
+        document.getElementById('modal-titulo').innerText = "Editar Unidade";
+        document.getElementById('edit-id').value = emp.id;
+        document.getElementById('nome').value = emp.nome_fantasia || emp.nome;
+        document.getElementById('cnpj').value = emp.cnpj;
+        document.getElementById('responsavel').value = emp.responsavel;
+        document.getElementById('email').value = emp.email;
+        document.getElementById('telefone').value = emp.telefone;
+        document.getElementById('senha_acesso').value = emp.senha_acesso || "";
+        document.getElementById('endereco').value = emp.endereco;
+        document.getElementById('modalEmpresa').style.display = 'flex';
+    }
+
+    function gerarQRAtivacao(id) {
+        const emp = clientesCache.find(c => c.id === id);
+        const qrContent = btoa(JSON.stringify({ id: emp.id, nome: emp.nome_fantasia || emp.nome, api: API_URL }));
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        new QRCode(container, { text: qrContent, width: 256, height: 256 });
+        document.getElementById('modalQR').style.display = 'flex';
+    }
+
+    async function excluirEmpresa(id) {
+        if(confirm("Deseja realmente excluir esta unidade?")) {
+            await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' });
+            carregarEmpresas();
+        }
+    }
+</script>
 </body>
 </html>
