@@ -5,9 +5,6 @@ from firebase_admin import credentials, firestore
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 CORS(app)
@@ -28,154 +25,128 @@ def get_agora_br():
     return datetime.now(timezone(timedelta(hours=-3)))
 
 
-# --- FUNÇÃO DE ENVIO DE E-MAIL (SMTP) ---
-def enviar_alerta_presenca(email_destino, nome_aluno, horario):
-    # Nota: Use variáveis de ambiente para segurança
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
-    sender_email = os.getenv("EMAIL_SISTEMA", "seu-email@gmail.com")
-    sender_password = os.getenv("EMAIL_SENHA", "sua-senha-app")
-
-    msg = MIMEMultipart()
-    msg['From'] = f"Gestão Escolar <{sender_email}>"
-    msg['To'] = email_destino
-    msg['Subject'] = f"Presença Confirmada: {nome_aluno}"
-
-    corpo = f"""
-    <html>
-        <body>
-            <h2 style="color: #4f46e5;">Confirmação de Frequência</h2>
-            <p>Olá,</p>
-            <p>Informamos que o aluno <b>{nome_aluno}</b> registou entrada na escola hoje às <b>{horario}</b>.</p>
-            <hr>
-            <p style="font-size: 0.8em; color: #64748b;">Este é um aviso automático do sistema PontoBack Escolar.</p>
-        </body>
-    </html>
-    """
-    msg.attach(MIMEText(corpo, 'html'))
-
-    try:
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, email_destino, msg.as_string())
-        server.quit()
-        return True
-    except Exception as e:
-        print(f"Erro ao enviar e-mail: {e}")
-        return False
-
-
-# --- ROTAS DE AUTENTICAÇÃO ---
-@app.route('/api/login', methods=['POST'])
-def login():
+# --- LOGIN ADMINISTRATIVO (DONO) ---
+@app.route('/api/admin/login', methods=['POST'])
+def login_admin():
     dados = request.json
-    login_user = dados.get('login')
-    senha_user = dados.get('senha')
+    senha_digitada = str(dados.get('senha', '')).strip()
+    # Puxa ADMIN_PASSWORD da Vercel. Se não existir, usa 'admin123'
+    senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
 
-    user_query = db.collection('usuarios').where('login', '==', login_user).limit(1).get()
-
-    if not user_query:
-        return jsonify({"erro": "Utilizador não encontrado"}), 404
-
-    user_data = user_query[0].to_dict()
-    if user_data['senha'] == senha_user:
-        return jsonify({"auth": True, "perfil": user_data['perfil'], "nome": user_data['nome']}), 200
-
+    if senha_digitada == senha_mestra:
+        return jsonify({"auth": True}), 200
     return jsonify({"erro": "Senha incorreta"}), 401
 
 
-# --- GESTÃO DE ALUNOS E RESPONSÁVEIS ---
-@app.route('/api/alunos', methods=['POST'])
-def cadastrar_aluno():
+# --- GERENCIAMENTO DE CLIENTES ---
+@app.route('/api/clientes', methods=['GET', 'POST'])
+def gerenciar_clientes():
+    if request.method == 'POST':
+        dados = request.json
+        doc_ref = db.collection('clientes').document()
+        dados['id'] = doc_ref.id
+        if 'nome' in dados: dados['nome_fantasia'] = dados['nome']
+        doc_ref.set(dados)
+        return jsonify(dados), 201
+
+    docs = db.collection('clientes').stream()
+    return jsonify([doc.to_dict() for doc in docs])
+
+
+@app.route('/api/clientes/<id>', methods=['GET', 'PUT', 'DELETE'])
+def detalhe_cliente(id):
+    doc_ref = db.collection('clientes').document(id)
+    if request.method == 'PUT':
+        dados = request.json
+        dados['id'] = id
+        doc_ref.update(dados)
+        return jsonify({"status": "atualizado"})
+    if request.method == 'DELETE':
+        doc_ref.delete()
+        return jsonify({"status": "excluido"})
+
+    doc = doc_ref.get()
+    return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
+
+
+# --- LOGIN DO TABLET ---
+@app.route('/api/clientes/login-tablet', methods=['POST'])
+def login_unidade():
+    try:
+        dados = request.json
+        cnpj_input = "".join(filter(str.isdigit, str(dados.get('cnpj', ''))))
+        senha_input = str(dados.get('senha', '')).strip()
+
+        docs = db.collection('clientes').stream()
+        for doc in docs:
+            c = doc.to_dict()
+            cnpj_banco = "".join(filter(str.isdigit, str(c.get('cnpj', ''))))
+            senha_banco = str(c.get('senha_acesso', '')).strip()
+
+            if cnpj_banco == cnpj_input and senha_banco == senha_input:
+                return jsonify({"id": doc.id, "nome": c.get('nome_fantasia', c.get('nome'))}), 200
+
+        return jsonify({"erro": "Credenciais inválidas"}), 401
+    except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+
+
+# --- REGISTO DE PONTO ---
+@app.route('/api/ponto/registrar', methods=['POST'])
+def registrar_ponto():
     dados = request.json
-    matricula = str(dados['matricula']).strip()
+    cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
+    f_ref = db.collection('funcionarios').document(cpf).get()
 
-    # Criar Aluno
-    aluno_ref = db.collection('alunos').document(matricula)
-    aluno_ref.set({
-        "nome": dados['nome'],
-        "matricula": matricula,
-        "email": dados.get('email_aluno'),
-        "turma_id": dados.get('turma_id'),
-        "qr_token": matricula,  # Token para o QR Code
-        "cpf": dados.get('cpf'),
-        "nascimento": dados.get('nascimento'),
-        "sexo": dados.get('sexo'),
-        "endereco": dados.get('endereco')
-    })
+    if not f_ref.exists:
+        return jsonify({"erro": "CPF não encontrado"}), 404
 
-    # Criar Responsável vinculado
-    db.collection('responsaveis').add({
-        "aluno_id": matricula,
-        "nome": dados['responsavel_nome'],
-        "email": dados['responsavel_email'],
-        "telefone": dados['responsavel_tel']
-    })
-
-    return jsonify({"status": "sucesso"}), 201
-
-
-@app.route('/api/alunos/<turma_id>', methods=['GET'])
-def listar_alunos_turma(turma_id):
-    # Lista alunos e anexa o status de presença de hoje
-    hoje = get_agora_br().strftime('%Y-%m-%d')
-    alunos = db.collection('alunos').where('turma_id', '==', turma_id).stream()
-
-    lista = []
-    for doc in alunos:
-        aluno = doc.to_dict()
-        # Verificar se tem presença hoje
-        presenca = db.collection('presencas') \
-            .where('aluno_id', '==', doc.id) \
-            .where('data_hora', '>=', hoje).limit(1).get()
-
-        aluno['status'] = "PRESENTE" if presenca else "FALTA"
-        lista.append(aluno)
-
-    return jsonify(lista), 200
-
-
-# --- REGISTO DE PRESENÇA (TABLET) ---
-@app.route('/api/presenca/registrar', methods=['POST'])
-def registrar_presenca():
-    dados = request.json
-    token = str(dados.get('qr_token')).strip()
-    dispositivo = dados.get('dispositivo', 'Portaria Central')
-
-    # 1. Localizar Aluno pelo QR Token (Matrícula)
-    aluno_query = db.collection('alunos').where('qr_token', '==', token).limit(1).get()
-
-    if not aluno_query:
-        return jsonify({"erro": "QR Code Inválido"}), 404
-
-    aluno_doc = aluno_query[0]
-    aluno_data = aluno_doc.to_dict()
+    func = f_ref.to_dict()
     agora = get_agora_br()
-    horario_str = agora.strftime('%H:%M')
 
-    # 2. Registar na tabela de presenças
-    db.collection('presencas').add({
-        "aluno_id": aluno_doc.id,
-        "data_hora": agora.isoformat(),
-        "tipo": "ENTRADA",
-        "dispositivo": dispositivo
-    })
+    # Ordenação manual no Python para evitar necessidade de índices compostos no Firebase
+    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
+    pontos = [p.to_dict() for p in docs]
+    pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
 
-    # 3. Localizar Responsável para enviar e-mail
-    resp_query = db.collection('responsaveis').where('aluno_id', '==', aluno_doc.id).limit(1).get()
+    tipo, horas = "ENTRADA", 0
+    if pontos and pontos[0]['tipo'] == "ENTRADA":
+        tipo = "SAÍDA"
+        inicio = datetime.fromisoformat(pontos[0]['timestamp_servidor'])
+        if inicio.tzinfo is None: inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
+        horas = round((agora - inicio).total_seconds() / 3600, 2)
 
-    if resp_query:
-        resp_data = resp_query[0].to_dict()
-        enviar_alerta_presenca(resp_data['email'], aluno_data['nome'], horario_str)
+    novo_ponto = {
+        "id_funcionario": cpf, "funcionario": func['nome'], "id_cliente": dados.get('id_cliente'),
+        "tipo": tipo, "timestamp_servidor": agora.isoformat(), "horas_trabalhadas": horas
+    }
+    db.collection('pontos').add(novo_ponto)
+    return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas})
 
-    return jsonify({
-        "status": "sucesso",
-        "aluno": aluno_data['nome'],
-        "horario": horario_str
-    }), 200
+
+# --- FUNCIONÁRIOS ---
+@app.route('/api/funcionarios', methods=['POST'])
+def criar_func():
+    dados = request.json
+    cpf = "".join(filter(str.isdigit, str(dados['cpf'])))
+    dados['cpf'] = cpf
+    db.collection('funcionarios').document(cpf).set(dados)
+    return jsonify(dados), 201
+
+
+@app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
+def listar_funcs(cliente_id):
+    docs = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
+    return jsonify([doc.to_dict() for doc in docs])
+
+
+@app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
+def relatorio(cpf):
+    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
+    lista = [d.to_dict() for d in docs]
+    lista.sort(key=lambda x: x['timestamp_servidor'])
+    return jsonify(lista)
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(debug=True)
