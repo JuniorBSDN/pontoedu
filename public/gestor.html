@@ -2,196 +2,236 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoBack | Admin Escolar</title>
+    <title>PontoBack | Gestão de Alunos</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-
     <style>
         :root {
-            --primary: #4f46e5; --sidebar-bg: #0f172a; --bg: #f8fafc;
-            --text: #1e293b; --border: #e2e8f0; --success: #10b981; --danger: #ef4444;
+            --primary: #10b981; /* Verde Matrix para Alunos */
+            --sidebar-bg: #0f172a;
+            --bg: #f8fafc;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+            --success: #10b981;
+            --info: #3b82f6;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; color: #1e293b; min-height: 100vh; }
 
-        .layout { display: flex; min-height: 100vh; }
+        .sidebar { background: var(--sidebar-bg); color: white; width: 260px; height: 100vh; padding: 2rem; position: fixed; }
+        .main { margin-left: 260px; padding: 3rem; width: 100%; }
 
-        /* Sidebar */
-        .sidebar { width: 280px; background: var(--sidebar-bg); color: white; padding: 2rem; position: fixed; height: 100vh; z-index: 100; }
-        .sidebar h2 { font-size: 1.5rem; margin-bottom: 2rem; color: var(--primary); display: flex; align-items: center; gap: 10px; }
-        .nav-link { display: flex; align-items: center; gap: 12px; padding: 12px; color: #94a3b8; text-decoration: none; border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: 0.3s; }
-        .nav-link:hover, .nav-link.active { background: #1e293b; color: white; }
+        .card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid var(--border); }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
 
-        /* Main Content */
-        .main { margin-left: 280px; padding: 3rem; width: calc(100% - 280px); }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; text-decoration: none; }
+        .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; transition: 0.2s; }
 
-        /* Stats Cards */
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem; }
-        .card { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        .card h4 { color: #64748b; font-size: 0.875rem; margin-bottom: 8px; }
-        .card p { font-size: 1.8rem; font-weight: 700; color: var(--sidebar-bg); }
+        .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:500px; position: relative; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; }
 
-        /* Seções */
-        .section { display: none; }
-        .section.active { display: block; }
-
-        /* Table Style */
-        .table-container { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; }
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f1f5f9; padding: 12px 20px; text-align: left; font-size: 0.85rem; color: #64748b; }
-        td { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 0.9rem; }
-
-        /* Buttons */
-        .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-weight: 600; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-success { background: var(--success); color: white; }
-        .btn-ghost { background: #f1f5f9; color: var(--text); }
-
-        /* Modais */
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
-        .modal-content { background: white; padding: 2rem; border-radius: 16px; width: 500px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
-        .form-group { margin-bottom: 1.2rem; }
-        .form-group label { display: block; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; color: #475569; }
-        .form-group input, .form-group select { width: 100%; padding: 11px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; }
-
-        #qrcode-container { display: flex; justify-content: center; padding: 20px; background: white; border: 1px dashed var(--border); border-radius: 12px; margin-top: 10px; }
+        @media print {
+            .no-print { display: none !important; }
+            .sidebar { display: none !important; }
+            .main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
+            .modal-content { box-shadow: none !important; border: none !important; }
+        }
     </style>
 </head>
 <body>
 
-<div class="layout">
-    <aside class="sidebar">
-        <h2><i class="fas fa-graduation-cap"></i> PontoBack</h2>
-        <nav>
-            <div class="nav-link active" onclick="switchSection('turmas', this)"><i class="fas fa-school"></i> Turmas</div>
-            <div class="nav-link" onclick="switchSection('usuarios', this)"><i class="fas fa-users-cog"></i> Usuários</div>
-            <div class="nav-link" onclick="switchSection('relatorios', this)"><i class="fas fa-chart-line"></i> Relatórios</div>
-            <hr style="opacity: 0.1; margin: 1rem 0;">
-            <a href="gestor.html" class="nav-link"><i class="fas fa-user-graduate"></i> Gestão de Alunos</a>
-        </nav>
-    </aside>
-
-    <main class="main">
-        <section id="section-turmas" class="section active">
-            <div class="header">
-                <h1>Turmas e Unidades</h1>
-                <button class="btn btn-primary" onclick="abrirModal('modalTurma')"><i class="fas fa-plus"></i> Nova Turma</button>
-            </div>
-            <div class="stats-grid">
-                <div class="card"><h4>Turmas Ativas</h4><p>0</p></div>
-                <div class="card"><h4>Alunos</h4><p>0</p></div>
-                <div class="card"><h4>Média Frequência</h4><p>0%</p></div>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead><tr><th>Turma</th><th>Série</th><th>Turno</th><th>Ações</th></tr></thead>
-                    <tbody id="lista-turmas"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="section-usuarios" class="section">
-            <div class="header">
-                <h1>Gerenciar Usuários</h1>
-                <button class="btn btn-primary" onclick="abrirModal('modalUsuario')"><i class="fas fa-user-plus"></i> Novo Usuário</button>
-            </div>
-            <div class="table-container">
-                <table>
-                    <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Ações</th></tr></thead>
-                    <tbody id="lista-usuarios"></tbody>
-                </table>
-            </div>
-        </section>
-
-        <section id="section-relatorios" class="section">
-            <div class="header"><h1>Relatórios de Frequência</h1></div>
-            <div class="card">
-                <p style="font-size: 1rem; color: #64748b;">Selecione o período para gerar o PDF consolidado de faltas e presenças.</p>
-                <br>
-                <input type="month" class="btn btn-ghost" style="padding: 12px;">
-                <button class="btn btn-success"><i class="fas fa-file-pdf"></i> Exportar Relatório</button>
-            </div>
-        </section>
-    </main>
-</div>
-
-<div id="modalTurma" class="modal">
-    <div class="modal-content">
-        <h3><i class="fas fa-school"></i> Cadastrar Turma</h3><br>
-        <div class="form-group"><label>Nome da Turma</label><input type="text" id="t-nome" placeholder="Ex: 9º Ano A"></div>
-        <div class="form-group"><label>Série</label><input type="text" id="t-serie" placeholder="Ex: Ensino Fundamental"></div>
-        <div class="form-group">
-            <label>Turno</label>
-            <select id="t-turno"><option value="Manhã">Manhã</option><option value="Tarde">Tarde</option><option value="Noite">Noite</option></select>
-        </div>
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button class="btn btn-success" style="flex: 1;" onclick="salvarTurma()">Salvar</button>
-            <button class="btn btn-ghost" style="flex: 1;" onclick="fecharModal('modalTurma')">Cancelar</button>
-        </div>
+<div id="login-area" class="no-print" style="position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000;">
+    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center;">
+        <h2 style="color:white; margin-bottom:1.5rem;">Gestão de Alunos</h2>
+        <input type="text" id="l-cnpj" placeholder="CNPJ da Escola">
+        <input type="password" id="l-senha" placeholder="Senha Administrativa">
+        <button class="btn" style="width:100%; margin-top: 1rem;" onclick="fazerLogin()">Acessar Painel</button>
     </div>
 </div>
 
-<div id="modalUsuario" class="modal">
+<nav class="sidebar no-print">
+    <h2 style="color:#10b981; margin-bottom: 2rem;">PontoBack</h2>
+    <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.5rem;">Módulo Acadêmico</p>
+
+    <div style="margin-bottom: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 1rem;">
+        <small style="color:#94a3b8; text-transform: uppercase; font-size: 0.7rem;">Unidade:</small>
+        <strong id="unidade-nome" style="display:block; color: white; font-size: 1.1rem;">---</strong><br>
+        <small style="color:#94a3b8; display: block; margin-bottom: 4px;">CNPJ:</small>
+        <span id="unidade-cnpj" style="color: #cbd5e1; font-size: 0.85rem; font-family: monospace;">--.---.---/----.--</span>
+    </div>
+
+
+
+
+    <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer; transition: 0.3s;" onmouseover="this.style.borderColor='#ef4444'; this.style.color='#ef4444'" onmouseout="this.style.borderColor='#334155'; this.style.color='#94a3b8'">
+        <i class="fas fa-sign-out-alt"></i> Sair
+    </button>
+</nav>
+
+<main class="main">
+    <header style="display:flex; justify-content:space-between; margin-bottom:2.5rem;" class="no-print">
+        <h1>Gestão de Alunos</h1>
+        <button class="btn" onclick="abrirModalAluno()"><i class="fas fa-user-plus"></i> Novo Aluno</button>
+    </header>
+
+    <div class="card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Aluno / Matrícula</th>
+                    <th>Série / Turma</th>
+                    <th>Responsável</th>
+                    <th>Acesso</th>
+                    <th style="text-align: right;">Ações</th>
+                </tr>
+            </thead>
+            <tbody id="lista-alunos"></tbody>
+        </table>
+    </div>
+</main>
+
+<!-- Modal Aluno -->
+<div id="modalAluno" class="modal no-print">
     <div class="modal-content">
-        <h3><i class="fas fa-user-shield"></i> Novo Usuário do Sistema</h3><br>
-        <div class="form-group"><label>Nome Completo</label><input type="text" id="u-nome"></div>
-        <div class="form-group"><label>Login (E-mail ou CPF)</label><input type="text" id="u-login"></div>
-        <div class="form-group"><label>Senha</label><input type="password" id="u-senha"></div>
-        <div class="form-group">
-            <label>Perfil</label>
-            <select id="u-perfil">
-                <option value="ADMIN">Administrador Master</option>
-                <option value="GESTOR">Diretor / Coordenador</option>
-                <option value="PORTARIA">Tablet / Portaria</option>
-            </select>
-        </div>
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button class="btn btn-success" style="flex: 1;">Salvar Usuário</button>
-            <button class="btn btn-ghost" style="flex: 1;" onclick="fecharModal('modalUsuario')">Cancelar</button>
-        </div>
+        <h3 id="titulo-modal">Cadastrar Aluno</h3>
+        <input type="text" id="a-nome" placeholder="Nome Completo do Aluno">
+        <input type="text" id="a-matricula" placeholder="Nº Matrícula (Apenas números)">
+        <input type="text" id="a-turma" placeholder="Série/Turma (Ex: 9º Ano A)">
+        <input type="text" id="a-responsavel" placeholder="Nome do Responsável">
+        <input type="text" id="a-senha" placeholder="Senha para Totem/Portal">
+
+        <button class="btn" style="width:100%; margin-top:1rem;" onclick="salvarAluno()">Salvar Aluno</button>
+        <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
     </div>
 </div>
 
+<!-- Modal QR Aluno -->
 <div id="modalQR" class="modal">
-    <div class="modal-content" style="text-align: center;">
-        <h3>Configurar Dispositivo</h3>
-        <p style="font-size: 0.8rem; color: #64748b; margin: 10px 0;">Use o Tablet da escola para ler este código e ativar o ponto de presença.</p>
-        <div id="qrcode-container"></div>
-        <br>
-        <button class="btn btn-primary" style="width: 100%;" onclick="fecharModal('modalQR')">Concluído</button>
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <h3 class="no-print">Cartão de Identificação</h3>
+        <p id="qr-nome-aluno" style="margin: 15px 0; font-weight: bold; color: var(--primary); font-size: 1.2rem;"></p>
+        <div id="qrcode-container" style="display: inline-block; padding: 10px; border: 1px solid #eee;"></div>
+        <div class="no-print" style="margin-top: 20px;">
+            <button class="btn" style="width:100%;" onclick="window.print()">Imprimir Cartão</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b;" onclick="fecharModais()">Fechar</button>
+        </div>
     </div>
 </div>
 
 <script>
-    function switchSection(target, element) {
-        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        document.getElementById('section-' + target).classList.add('active');
+    const API_URL = "https://pontoback-tau.vercel.app/api";
+    let config = JSON.parse(localStorage.getItem("config_gestor_alunos"));
+    let alunosAtuais = [];
 
-        document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-        element.classList.add('active');
+    function iniciar() {
+        if (config) {
+            document.getElementById('login-area').style.display = 'none';
+            document.getElementById('unidade-nome').innerText = config.nome;
+            carregarAlunos();
+        }
     }
 
-    function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
-    function fecharModal(id) { document.getElementById(id).style.display = 'none'; }
-
-    function salvarTurma() {
-        // Lógica para enviar ao index.py
-        alert("Turma salva!");
-        fecharModal('modalTurma');
+    async function fazerLogin() {
+        const cnpj = document.getElementById('l-cnpj').value.replace(/\D/g, '');
+        const senha = document.getElementById('l-senha').value;
+        const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ cnpj, senha })
+        });
+        if (res.ok) {
+            const dados = await res.json();
+            localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
+            location.reload();
+        } else { alert("Acesso negado."); }
     }
 
-    // Geração do Token de Ativação do Tablet
-    function gerarQRTablet(turmaId) {
+    async function carregarAlunos() {
+        try {
+            // Reutilizando a rota de busca por cliente_id, mas buscando na collection de alunos (ajuste no backend necessário)
+            const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
+            alunosAtuais = await res.json();
+            document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
+                <tr>
+                    <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
+                    <td>${a.turma || 'Não definida'}</td>
+                    <td>${a.responsavel || '---'}</td>
+                    <td><small>Senha: <b>${a.senha || '123'}</b></small></td>
+                    <td style="text-align: right;">
+                        <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
+                        <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
+                        <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error("Erro ao listar alunos."); }
+    }
+
+    async function salvarAluno() {
+        const isEdit = document.getElementById('a-matricula').disabled;
+        const matricula = document.getElementById('a-matricula').value.replace(/\D/g, '');
+        const dados = {
+            nome: document.getElementById('a-nome').value,
+            matricula: matricula,
+            turma: document.getElementById('a-turma').value,
+            responsavel: document.getElementById('a-responsavel').value,
+            senha: document.getElementById('a-senha').value,
+            cliente_id: config.id
+        };
+
+        const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dados)
+        });
+
+        if(res.ok) { fecharModais(); carregarAlunos(); }
+    }
+
+    function prepararEdicao(mat) {
+        const a = alunosAtuais.find(x => x.matricula === mat);
+        document.getElementById('a-nome').value = a.nome;
+        document.getElementById('a-matricula').value = a.matricula;
+        document.getElementById('a-matricula').disabled = true;
+        document.getElementById('a-turma').value = a.turma || "";
+        document.getElementById('a-responsavel').value = a.responsavel || "";
+        document.getElementById('a-senha').value = a.senha || "";
+        document.getElementById('titulo-modal').innerText = "Editar Aluno";
+        document.getElementById('modalAluno').style.display = 'flex';
+    }
+
+    function abrirQR(mat, nome) {
+        document.getElementById('qr-nome-aluno').innerText = nome;
         const container = document.getElementById('qrcode-container');
         container.innerHTML = "";
-        const config = JSON.stringify({ id_turma: turmaId, modo: "FREQUENCIA_ESCOLAR" });
-        new QRCode(container, { text: btoa(config), width: 220, height: 220 });
-        abrirModal('modalQR');
+        new QRCode(container, { text: mat, width: 220, height: 220 });
+        document.getElementById('modalQR').style.display = 'flex';
     }
-</script>
 
+    async function removerAluno(mat) {
+        if(confirm("Excluir este aluno?")) {
+            await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
+            carregarAlunos();
+        }
+    }
+
+    function abrirModalAluno() {
+        document.getElementById('a-matricula').disabled = false;
+        document.querySelectorAll('#modalAluno input').forEach(i => i.value = "");
+        document.getElementById('titulo-modal').innerText = "Cadastrar Aluno";
+        document.getElementById('modalAluno').style.display = 'flex';
+    }
+
+    function fecharModais() {
+        document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+    }
+
+    function sair() { localStorage.clear(); location.reload(); }
+    iniciar();
+</script>
 </body>
 </html>
