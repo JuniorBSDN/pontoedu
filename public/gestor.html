@@ -140,22 +140,14 @@
     </div>
 
     <div id="tab-logs" class="tab-content">
+        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+    <input type="month" id="filtro-mes" onchange="filtrarHistorico()" style="margin:0; max-width:200px;">
+    <input type="text" id="filtro-sala" placeholder="Filtrar por Turma/Sala" oninput=filtrarHistorico() style="margin:0; max-width:200px;">
+</div>
         <header style="margin-bottom:2.5rem;">
             <h1>Histórico de Frequência</h1>
             <p style="color: #64748b;">Arquivo completo de acessos cronológicos.</p>
         </header>
-
-        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 200px; max-width: 250px;">
-                <small style="color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Filtrar por Mês:</small>
-                <input type="month" id="filtro-mes" onchange="filtrarHistorico()" style="margin:0;">
-            </div>
-            <div style="flex: 1; min-width: 200px; max-width: 300px;">
-                <small style="color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Filtrar por Turma/Sala:</small>
-                <input type="text" id="filtro-sala" placeholder="Ex: 9º Ano A" oninput="filtrarHistorico()" style="margin:0;">
-            </div>
-        </div>
-
         <div class="card">
             <table>
                 <thead>
@@ -181,7 +173,6 @@
         <input type="text" id="a-matricula" placeholder="Nº Matrícula (Apenas números)">
         <input type="text" id="a-turma" placeholder="Série/Turma (Ex: 9º Ano A)">
         <input type="text" id="a-responsavel" placeholder="Nome do Responsável">
-        <input type="text" id="a-senha" placeholder="Senha de Acesso (Totem)">
         <button class="btn" style="width:100%; margin-top:1rem; justify-content: center;" onclick="salvarAluno()">Salvar Aluno</button>
         <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
     </div>
@@ -200,7 +191,6 @@
 </div>
 
 <script>
-    // Configuração Inteligente de Rota (Detecta automaticamente se roda em Localhost ou Produção na Vercel)
     const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://127.0.0.1:5000/api"
         : window.location.origin + "/api";
@@ -253,104 +243,82 @@
         }
     }
 
-    async function carregarAlunos() {
-        try {
-            const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
-            if (!res.ok) return;
-            alunosAtuais = await res.json();
-            document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
-
-            document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
-                <tr>
-                    <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
-                    <td>${a.turma || 'Não definida'}</td>
-                    <td>${a.responsavel || '---'}</td>
-                    <td style="text-align: right;">
-                        <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
-                        <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
-                        <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
-        } catch (e) {
-            console.error("Erro ao carregar alunos:", e);
+    function filtrarHistorico() {
+    const mesSel = document.getElementById('filtro-mes').value; // Retorna "YYYY-MM"
+    const salaSel = document.getElementById('filtro-sala').value.toLowerCase();
+    
+    const linhas = document.querySelectorAll('#lista-historico-completo tr');
+    
+    linhas.forEach(linha => {
+        const dataTxt = linha.children[0].innerText; // Coluna da Data (YYYY-MM-DD)
+        const salaTxt = linha.children[4].innerText.toLowerCase(); // Coluna da Turma
+        
+        const bateMes = !mesSel || dataTxt.startsWith(mesSel);
+        const bateSala = !salaSel || salaTxt.includes(salaSel);
+        
+        if(bateMes && bateSala) {
+            linha.style.display = "";
+        } else {
+            linha.style.display = "none";
         }
+    });
+}
+    async function carregarAlunos() {
+        const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
+        alunosAtuais = await res.json();
+        document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
+
+        document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
+            <tr>
+                <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
+                <td>${a.turma || 'Não definida'}</td>
+                <td>${a.responsavel || '---'}</td>
+                <td style="text-align: right;">
+                    <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
+                    <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
+                    <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
     }
 
     async function carregarHistorico() {
-        try {
-            const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
-            if (!res.ok) return;
-            const logsPresencas = await res.json();
+        const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
+        const logsPresencas = await res.json();
 
-            const hoje = new Date().toISOString().split('T')[0];
-            const presencasHoje = logsPresencas.filter(p => p.data === hoje);
-            document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
+        const hoje = new Date().toISOString().split('T')[0];
+        const presencasHoje = logsPresencas.filter(p => p.data === hoje);
+        document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-            // Renderiza as 5 movimentações mais recentes no Dashboard
-            document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
-                const tipoMov = p.tipo || "ENTRADA";
-                const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
-                return `
-                    <tr>
-                        <td><strong>${p.aluno}</strong></td>
-                        <td>${p.turma}</td>
-                        <td><span class="badge ${badgeClass}">${tipoMov}</span></td>
-                        <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
-                    </tr>
-                `;
-            }).join('');
+        // Renderiza as 5 batidas mais recentes no Dashboard discriminando Entrada/Saída
+        document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
+            const isEntrada = p.tipo === "ENTRADA";
+            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            return `
+                <tr>
+                    <td><strong>${p.aluno}</strong></td>
+                    <td>${p.turma}</td>
+                    <td><span class="badge ${badgeClass}">${p.tipo}</span></td>
+                    <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
+                </tr>
+            `;
+        }).join('');
 
-            // Preenche a tabela de histórico completo
-            document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-                const tipoMov = p.tipo || "ENTRADA";
-                const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
-                return `
-                    <tr>
-                        <td>${p.data}</td>
-                        <td>${p.hora}</td>
-                        <td><code>${p.matricula}</code></td>
-                        <td><strong>${p.aluno}</strong></td>
-                        <td>${p.turma}</td>
-                        <td><span class="badge ${badgeClass}">${tipoMov}</span></td>
-                    </tr>
-                `;
-            }).join('');
-
-            filtrarHistorico();
-        } catch (e) {
-            console.error("Erro ao carregar histórico:", e);
-        }
-    }
-
-    function filtrarHistorico() {
-        const mesSel = document.getElementById('filtro-mes').value; 
-        const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
-        const linhas = document.querySelectorAll('#lista-historico-completo tr');
-        
-        linhas.forEach(linha => {
-            if (linha.children.length < 5) return;
-            
-            const dataTxt = normalizarDataParaFiltro(linha.children[0].innerText); 
-            const salaTxt = linha.children[4].innerText.toLowerCase(); 
-            
-            const bateMes = !mesSel || dataTxt.startsWith(mesSel);
-            const bateSala = !salaSel || salaTxt.includes(salaSel);
-            
-            if (bateMes && bateSala) {
-                linha.style.display = "";
-            } else {
-                linha.style.display = "none";
-            }
-        });
-    }
-
-    function normalizarDataParaFiltro(txt) {
-        if(txt.includes('/')) {
-            const partes = txt.split('/');
-            return `${partes[2]}-${partes[1]}-${partes[0]}`;
-        }
-        return txt;
+        // Histórico Geral
+        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
+            const isEntrada = p.tipo === "ENTRADA";
+            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            return `
+                <tr>
+                    <td>${p.data}</td>
+                    <td>${p.hora}</td>
+                    <td><code>${p.matricula}</code></td>
+                    <td><strong>${p.aluno}</strong></td>
+                    <td>${p.turma}</td>
+                    <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
+                </tr>
+            `;
+        }).join('');
     }
 
     async function salvarAluno() {
@@ -361,7 +329,6 @@
             matricula: matricula,
             turma: document.getElementById('a-turma').value,
             responsavel: document.getElementById('a-responsavel').value,
-            senha: document.getElementById('a-senha').value,
             cliente_id: config.id
         };
 
@@ -371,7 +338,7 @@
             body: JSON.stringify(dados)
         });
 
-        if (res.ok) { fecharModais(); carregarAlunos(); carregarHistorico(); }
+        if(res.ok) { fecharModais(); carregarAlunos(); carregarHistorico(); }
     }
 
     function prepararEdicao(mat) {
@@ -381,7 +348,6 @@
         document.getElementById('a-matricula').disabled = true;
         document.getElementById('a-turma').value = a.turma || "";
         document.getElementById('a-responsavel').value = a.responsavel || "";
-        document.getElementById('a-senha').value = a.senha || "";
         document.getElementById('titulo-modal').innerText = "Editar Aluno";
         document.getElementById('modalAluno').style.display = 'flex';
     }
@@ -395,7 +361,7 @@
     }
 
     async function removerAluno(mat) {
-        if (confirm("Excluir este aluno?")) {
+        if(confirm("Excluir este aluno?")) {
             await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
             carregarAlunos();
         }
