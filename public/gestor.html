@@ -140,6 +140,10 @@
     </div>
 
     <div id="tab-logs" class="tab-content">
+        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+    <input type="month" id="filtro-mes" onchange="filtrarHistorico()" style="margin:0; max-width:200px;">
+    <input type="text" id="filtro-sala" placeholder="Filtrar por Turma/Sala" oninput=filtrarHistorico() style="margin:0; max-width:200px;">
+</div>
         <header style="margin-bottom:2.5rem;">
             <h1>Histórico de Frequência</h1>
             <p style="color: #64748b;">Arquivo completo de acessos cronológicos.</p>
@@ -239,6 +243,26 @@
         }
     }
 
+    function filtrarHistorico() {
+    const mesSel = document.getElementById('filtro-mes').value; // Retorna "YYYY-MM"
+    const salaSel = document.getElementById('filtro-sala').value.toLowerCase();
+    
+    const linhas = document.querySelectorAll('#lista-historico-completo tr');
+    
+    linhas.forEach(linha => {
+        const dataTxt = linha.children[0].innerText; // Coluna da Data (YYYY-MM-DD)
+        const salaTxt = linha.children[4].innerText.toLowerCase(); // Coluna da Turma
+        
+        const bateMes = !mesSel || dataTxt.startsWith(mesSel);
+        const bateSala = !salaSel || salaTxt.includes(salaSel);
+        
+        if(bateMes && bateSala) {
+            linha.style.display = "";
+        } else {
+            linha.style.display = "none";
+        }
+    });
+}
     async function carregarAlunos() {
         const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
         alunosAtuais = await res.json();
