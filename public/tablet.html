@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PontoEdu | Terminal Tablet</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #4f46e5;
@@ -38,10 +39,16 @@
 
     <div id="login-area" class="card">
         <h2>Ativar Totem Tablet</h2>
-        <p class="info-text">Identifique a escola usando o CNPJ e Senha configurados no painel administrativo.</p>
+        <p class="info-text">Identifique a escola usando o CNPJ e Senha ou aproxime o <strong>QR Code de Ativação Master</strong> da câmera abaixo.</p>
+        
         <input type="text" id="t-cnpj" placeholder="CNPJ da Escola">
         <input type="password" id="t-senha" placeholder="Senha de Acesso (Totem)">
-        <button onclick="ativarTablet()">Ativar Dispositivo</button>
+        <button onclick="ativarTabletManual()">Ativar Dispositivo</button>
+
+        <div style="margin-top: 20px; border-top: 1px solid #334155; padding-top: 15px;">
+            <p class="info-text" style="margin-bottom: 10px;"><i class="fas fa-qrcode"></i> Ou ative via Câmera:</p>
+            <div id="reader-ativacao" style="width: 100%; border-radius: 8px; overflow: hidden; background: #000;"></div>
+        </div>
     </div>
 
     <div id="ponto-area" class="card" style="display: none;">
@@ -62,18 +69,21 @@
 
         let config = JSON.parse(localStorage.getItem("config_tablet"));
         let html5Qrcode = null;
+        let html5QrcodeAtivacao = null;
 
         function iniciar() {
             if (config) {
                 document.getElementById('login-area').style.display = 'none';
                 document.getElementById('ponto-area').style.display = 'block';
                 document.getElementById('nome-unidade').innerText = config.nome;
-                startScannerDireto();
+                startScannerPonto();
+            } else {
+                startScannerAtivacao();
             }
         }
 
-        async function activarTablet() {
-            // Mantida a função original com 'c' para não quebrar referências internas caso existam
+        // 1. Ativação Manual via Formulário (Consertada a falha de escopo)
+        async function ativarTabletManual() {
             const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value.trim();
 
@@ -93,6 +103,10 @@
                     const dados = await res.json();
                     config = { id: dados.id, nome: dados.nome };
                     localStorage.setItem("config_tablet", JSON.stringify(config));
+                    
+                    if (html5QrcodeAtivacao) {
+                        await html5QrcodeAtivacao.stop().catch(e => console.log(e));
+                    }
                     location.reload();
                 } else {
                     mostrarFeedback("Acesso negado! Credenciais inválidas.", "erro");
@@ -102,61 +116,67 @@
             }
         }
 
-        // Garante compatibilidade caso o botão chame com ou sem a letra 'c'
-        function activarTablet() { return activarTabletReal(); }
-        function ativarTablet() { return activarTabletReal(); }
+        // 2. Scanner para ler QR Code de Ativação emitido pelo Painel Master SaaS
+        function startScannerAtivacao() {
+            html5QrcodeAtivacao = new Html5Qrcode("reader-ativacao");
+            const configScanner = { fps: 10, qrbox: { width: 220, height: 220 } };
 
-        async function activarTabletReal() {
-            const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
-            const senha = document.getElementById('t-senha').value.trim();
+            html5QrcodeAtivacao.start(
+                { facingMode: "environment" },
+                configScanner,
+                onScanAtivacaoSuccess
+            ).catch(() => {
+                html5QrcodeAtivacao.start({ facingMode: "user" }, configScanner, onScanAtivacaoSuccess)
+                    .catch(e => console.log("Aguardando permissão de câmera para ativação."));
+            });
+        }
 
-            if(!cnpj || !senha) {
-                alert("Preencha todos os campos.");
-                return;
-            }
-
+        function onScanAtivacaoSuccess(conteudoLido) {
             try {
-                const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ cnpj, senha })
-                });
-
-                if (res.ok) {
-                    const dados = await res.json();
-                    config = { id: dados.id, nome: dados.nome };
+                // Tenta decodificar o Base64 gerado pelo admin.html
+                const dadosDecodificados = JSON.parse(atob(conteudoLido));
+                if (dadosDecodificados.id && dadosDecodificados.nome) {
+                    config = { id: dadosDecodificados.id, nome: dadosDecodificados.nome };
                     localStorage.setItem("config_tablet", JSON.stringify(config));
-                    location.reload();
-                } else {
-                    mostrarFeedback("Acesso negado! Credenciais inválidas.", "erro");
+                    
+                    mostrarFeedback("DISPOSITIVO ATIVADO COM SUCESSO!", "entrada");
+                    
+                    setTimeout(async () => {
+                        if (html5QrcodeAtivacao) {
+                            await html5QrcodeAtivacao.stop().catch(e => console.log(e));
+                        }
+                        location.reload();
+                    }, 1500);
                 }
             } catch (e) {
-                mostrarFeedback("Erro ao se conectar com o servidor.", "erro");
+                // Se não for um Base64 válido de ativação, ignora para não travar o app
+                console.log("QR Code lido não é de ativação.");
             }
         }
 
-        function startScannerDireto() {
+        // 3. Scanner Principal de Registro de Frequência dos Alunos
+        function startScannerPonto() {
             html5Qrcode = new Html5Qrcode("reader");
-            const configScanner = { fps: 15, qrbox: { width: 250, height: 250 } };
+            const configScanner = { fps: 15, qrbox: { width: 260, height: 260 } };
 
             html5Qrcode.start(
                 { facingMode: "environment" },
                 configScanner,
-                onScanSuccess
+                onScanPontoSuccess
             ).catch(err => {
-                html5Qrcode.start({ facingMode: "user" }, configScanner, onScanSuccess)
+                html5Qrcode.start({ facingMode: "user" }, configScanner, onScanPontoSuccess)
                     .catch(e => console.error("Nenhuma câmera encontrada.", e));
             });
         }
 
-        async function onScanSuccess(conteudoLido) {
+        async function onScanPontoSuccess(conteudoLido) {
             if (window.processandoPonto) return;
             window.processandoPonto = true;
 
+            // Limpa a entrada deixando apenas números (caso venha máscara ou espaços)
             const matriculaLimpa = conteudoLido.replace(/\D/g, "");
 
             try {
-                // Conectado diretamente à rota correta do index.py (/api/ponto)
                 const res = await fetch(`${API_URL}/ponto`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -168,23 +188,24 @@
                 const data = await res.json();
 
                 if (res.ok && data.status === "sucesso") {
-                    let acao = data.tipo === "ENTRADA" ? "ENTRADA CONFIRMADA!" : "SAÍDA CONFIRMADA!";
-                    let msg = `${acao}\n\nAluno: ${data.aluno}\nHora: ${data.hora}`;
+                    let acao = data.tipo === "ENTRADA" ? "ENTRADA CONFIRMADA! ✅" : "SAÍDA CONFIRMADA! 🚀";
+                    let msg = `${acao}\n\nEstudante: ${data.aluno}\nHora: ${data.hora}`;
                     mostrarFeedback(msg, data.tipo.toLowerCase());
                 } else {
-                    mostrarFeedback(data.mensagem || "ERRO NO REGISTRO", "erro");
+                    mostrarFeedback(data.mensagem || "MATRÍCULA NÃO LOCALIZADA", "erro");
                 }
             } catch (e) {
-                mostrarFeedback("FALHA DE CONEXÃO", "erro");
+                mostrarFeedback("FALHA DE COMUNICAÇÃO COM O SERVIDOR", "erro");
             } finally {
-                // Bloqueia leituras duplicadas no mesmo segundo
+                // Debounce de 4 segundos para evitar duplicidade acidental do mesmo aluno
                 setTimeout(() => { window.processandoPonto = false; }, 4000);
             }
         }
 
+        // 4. Exibição de Alertas Inteligentes e Coloridos
         function mostrarFeedback(mensagem, tipo) {
             const fb = document.getElementById('feedback');
-            fb.innerText = mensagem; // CORRIGIDO: Agora usa a variável correta em português
+            fb.innerText = mensagem;
             fb.style.display = 'block';
 
             if (tipo === "entrada") {
@@ -198,8 +219,9 @@
             setTimeout(() => { fb.style.display = 'none'; }, 3500);
         }
 
+        // 5. Desativação segura da estação limpando o cache local
         function sair() {
-            if(confirm("Deseja desativar este totem?")) {
+            if(confirm("Deseja realmente desativar este totem operacional?")) {
                 if (html5Qrcode && html5Qrcode.isScanning) {
                     html5Qrcode.stop().then(() => {
                         localStorage.clear();
