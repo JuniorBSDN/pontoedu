@@ -5,7 +5,6 @@ from firebase_admin import credentials, firestore
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
-import pytz
 
 app = Flask(__name__)
 CORS(app)
@@ -123,76 +122,56 @@ def gerenciar_aluno_especifico(matricula):
 
 
 # --- CONTROLE DE FREQUÊNCIA (TRAVA DE PRESENÇA DIÁRIA UNIQUE) ---
-@app.route('/api/ponto', methods=['POST'])
+@app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
-    try:
-        dados = request.get_json()
-        matricula = dados.get('matricula')
-        
-        if not matricula:
-            return jsonify({"status": "erro", "mensagem": "Matrícula não fornecida."}), 400
-            
-        # 1. Busca o aluno para capturar Nome, Turma e Cliente_ID
-        aluno_doc = db.collection('alunos').document(matricula).get()
-        if not aluno_doc.exists:
-            return jsonify({"status": "erro", "mensagem": "Aluno não encontrado."}), 404
-            
-        aluno_dados = aluno_doc.to_dict()
-        
-        # 2. Gera data e hora corretas do servidor
-       # 2. Gera data e hora corretas do servidor (Utilizando a sua função nativa)
-        agora = get_agora_br()
-        data_hoje = agora.strftime('%Y-%m-%d')
-        hora_atual = agora.strftime('%H:%M:%S')
-        
-        # 3. Busca TODAS as movimentações do aluno HOJE para saber o último estado
-        pontos_hoje = db.collection('pontos') \
-            .where('matricula', '==', matricula) \
-            .where('data', '==', data_hoje) \
-            .get()
-            
-        lista_pontos = [p.to_dict() for p in pontos_hoje]
-        
-        # 4. Lógica de Alternância Inteligente (Entrada / Saída)
-        if len(lista_pontos) == 0:
-            # Se não tem nenhum registro hoje, obrigatoriamente é ENTRADA
-            proximo_tipo = "ENTRADA"
-        else:
-            # Ordena pelo horário para descobrir qual foi o último estado registrado
-            lista_pontos.sort(key=lambda x: x.get('hora', '00:00:00'))
-            ultimo_ponto = lista_pontos[-1]
-            ultimo_tipo = ultimo_ponto.get('tipo', 'ENTRADA')
-            
-            # Se o último foi Entrada, agora registra Saída. Se foi Saída, registra Entrada de novo.
-            proximo_tipo = "SAÍDA" if ultimo_tipo == "ENTRADA" else "ENTRADA"
-            
-        # 5. Monta o novo documento para salvar no Firestore
-        novo_ponto = {
-            "aluno": aluno_dados.get('nome'),
-            "matricula": matricula,
-            "turma": aluno_dados.get('turma', 'Não definida'),
-            "cliente_id": aluno_dados.get('cliente_id'),
-            "data": data_hoje,
-            "hora": hora_atual,
-            "tipo": proximo_tipo,
-            "timestamp_servidor": firestore.SERVER_TIMESTAMP
-        }
-        
-        # Salva o registro histórico
-        db.collection('pontos').add(novo_ponto)
-        
-        # Retorna a resposta limpa para o Tablet renderizar na tela
-        return jsonify({
-            "status": "sucesso",
-            "mensagem": f"{proximo_tipo} registrada com sucesso!",
-            "aluno": aluno_dados.get('nome'),
-            "tipo": proximo_tipo,
-            "hora": hora_atual
-        }), 200
-        
-    except Exception as e:
-        return jsonify({"status": "erro", "mensagem": str(e)}), 500
-        
+    dados = request.json
+    matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
+    id_cliente = dados.get('id_cliente')
+    
+    if not matricula:
+        return jsonify({"erro": "Matrícula inválida"}), 400
+
+    aluno_ref = db.collection('alunos').document(matricula).get()
+    if not aluno_ref.exists:
+        return jsonify({"erro": "Aluno não cadastrado no sistema"}), 404
+
+    aluno = aluno_ref.to_dict()
+    
+    # Segurança multitenant: Valida se o estudante pertence à instituição solicitante
+    if aluno.get('cliente_id') != id_cliente:
+        return jsonify({"erro": "Aluno não pertence a esta unidade de ensino"}), 403
+
+    agora = get_agora_br()
+    hoje_str = agora.date().isoformat()
+
+    # Validação contra duplicidade no mesmo dia
+    docs_hoje = db.collection('pontos')\
+        .where('matricula', '==', matricula)\
+        .where('data', '==', hoje_str)\
+        .limit(1).get()
+
+    if docs_hoje:
+        return jsonify({"erro": "Presença já computada para o dia de hoje."}), 400
+
+    # Estruturação simplificada do registro escolar
+    novo_ponto = {
+        "matricula": matricula,
+        "aluno": aluno['nome'],
+        "turma": aluno.get('turma', 'Não definida'),
+        "id_cliente": id_cliente,
+        "timestamp_servidor": agora.isoformat(),
+        "data": hoje_str,
+        "hora": agora.strftime('%H:%M:%S')
+    }
+    db.collection('pontos').add(novo_ponto)
+    
+    return jsonify({
+        "status": "success",
+        "aluno": aluno['nome'],
+        "turma": aluno.get('turma', 'N/A'),
+        "hora": novo_ponto['hora']
+    }), 200
+
 
 @app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
 def historico_unidade(cliente_id):
