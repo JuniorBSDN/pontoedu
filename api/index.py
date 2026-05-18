@@ -5,6 +5,7 @@ from firebase_admin import credentials, firestore
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
+import pytz
 
 app = Flask(__name__)
 CORS(app)
@@ -139,8 +140,8 @@ def registrar_ponto():
         aluno_dados = aluno_doc.to_dict()
         
         # 2. Gera data e hora corretas do servidor
-        fuso = pytz.timezone('America/Sao_Paulo')
-        agora = datetime.now(fuso)
+       # 2. Gera data e hora corretas do servidor (Utilizando a sua função nativa)
+        agora = get_agora_br()
         data_hoje = agora.strftime('%Y-%m-%d')
         hora_atual = agora.strftime('%H:%M:%S')
         
