@@ -1,4 +1,203 @@
-const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>PontoEdu | Gestão de Alunos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #10b981;
+            --sidebar-bg: #0f172a;
+            --bg: #f8fafc;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+            --success: #10b981;
+            --info: #3b82f6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; color: #1e293b; min-height: 100vh; }
+
+        .sidebar { background: var(--sidebar-bg); color: white; width: 260px; height: 100vh; padding: 2rem; position: fixed; display: flex; flex-direction: column; justify-content: space-between; }
+        .sidebar-menu { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem; }
+        .nav-link { display: flex; align-items: center; gap: 12px; color: #94a3b8; text-decoration: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .nav-link:hover, .nav-link.active { color: white; background: #1e293b; }
+        .nav-link.active { border-left: 4px solid var(--primary); }
+
+        .main { margin-left: 260px; padding: 3rem; width: calc(100% - 260px); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+        .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid var(--border); }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
+
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; }
+
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .badge-entrada { background: #ecfdf5; color: #059669; }
+        .badge-saida { background: #eff6ff; color: #2563eb; }
+
+        .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:500px; position: relative; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; background: white; color: #1e293b; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .sidebar { display: none !important; }
+            .main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="login-area" class="no-print" style="position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000;">
+    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4);">
+        <h2 style="color:white; margin-bottom:1.5rem; font-weight: 700;">Gestão de Alunos</h2>
+        <input type="text" id="l-cnpj" placeholder="CNPJ da Instituição">
+        <input type="password" id="l-senha" placeholder="Senha de Acesso (Totem)">
+        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Painel</button>
+    </div>
+</div>
+
+<nav class="sidebar no-print">
+    <div>
+        <h2 style="color:#10b981; margin-bottom: 2rem;">PontoEdu</h2>
+        <div style="margin-bottom: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 1rem;">
+            <small style="color:#94a3b8; text-transform: uppercase; font-size: 0.7rem;">Escola:</small>
+            <strong id="unidade-nome" style="display:block; color: white; font-size: 1.1rem;">---</strong>
+        </div>
+        <div class="sidebar-menu">
+            <div class="nav-link active" onclick="switchTab('tab-dash', this)"><i class="fas fa-chart-pie"></i> Dashboard</div>
+            <div class="nav-link" onclick="switchTab('tab-alunos', this)"><i class="fas fa-user-graduate"></i> Alunos</div>
+            <div class="nav-link" onclick="switchTab('tab-logs', this)"><i class="fas fa-clipboard-list"></i> Histórico / Logs</div>
+        </div>
+    </div>
+    <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer;">
+        <i class="fas fa-sign-out-alt"></i> Sair
+    </button>
+</nav>
+
+<main class="main">
+    <div id="tab-dash" class="tab-content active">
+        <header style="margin-bottom:2.5rem;">
+            <h1>Visão Geral</h1>
+            <p style="color: #64748b;">Métricas de assiduidade escolar de hoje.</p>
+        </header>
+        <div class="grid-stats">
+            <div class="card">
+                <small style="color: #64748b; font-weight:600; text-transform:uppercase;">Movimentações Hoje</small>
+                <h2 id="dash-presencas-hoje" style="font-size: 2.5rem; color: var(--primary); margin-top: 0.5rem;">0</h2>
+            </div>
+            <div class="card">
+                <small style="color: #64748b; font-weight:600; text-transform:uppercase;">Alunos Cadastrados</small>
+                <h2 id="dash-total-alunos" style="font-size: 2.5rem; color: var(--info); margin-top: 0.5rem;">0</h2>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Últimas Movimentações (Entradas/Saídas)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome do Aluno</th>
+                        <th>Série / Turma</th>
+                        <th>Fluxo</th>
+                        <th>Horário</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-ponto-recente"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="tab-alunos" class="tab-content">
+        <header style="display:flex; justify-content:space-between; margin-bottom:2.5rem;">
+            <div>
+                <h1>Corpo Discente</h1>
+                <p style="color: #64748b;">Cadastre alunos e gerencie credenciais QR Code.</p>
+            </div>
+            <button class="btn" onclick="abrirModalAluno()"><i class="fas fa-user-plus"></i> Novo Aluno</button>
+        </header>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Aluno / Matrícula</th>
+                        <th>Série / Turma</th>
+                        <th>Responsável</th>
+                        <th style="text-align: right;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-alunos"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="tab-logs" class="tab-content">
+        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <small style="color:#64748b; font-weight:600;">Filtrar por Data:</small>
+                <input type="date" id="filtro-data" onchange="filtrarHistorico()" style="margin:0; width:170px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <small style="color:#64748b; font-weight:600;">Filtrar por Turma:</small>
+                <input type="text" id="filtro-sala" placeholder="Ex: 9º Ano A" oninput="filtrarHistorico()" style="margin:0; max-width:180px;">
+            </div>
+        </div>
+        <header style="margin-bottom:2.5rem;">
+            <h1>Histórico de Frequência</h1>
+            <p style="color: #64748b;">Arquivo completo de acessos cronológicos.</p>
+        </header>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Hora</th>
+                        <th>Matrícula</th>
+                        <th>Estudante</th>
+                        <th>Turma</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-historico-completo"></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<div id="modalAluno" class="modal no-print">
+    <div class="modal-content">
+        <h3 id="titulo-modal">Cadastrar Aluno</h3>
+        <input type="text" id="a-nome" placeholder="Nome Completo do Aluno">
+        <input type="text" id="a-matricula" placeholder="Nº Matrícula (Apenas números)">
+        <input type="text" id="a-turma" placeholder="Série/Turma (Ex: 9º Ano A)">
+        <input type="text" id="a-responsavel" placeholder="Nome do Responsável">
+        <button class="btn" style="width:100%; margin-top:1rem; justify-content: center;" onclick="salvarAluno()">Salvar Aluno</button>
+        <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
+    </div>
+</div>
+
+<div id="modalQR" class="modal">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <h3 class="no-print">Cartão de Identificação Escolar</h3>
+        <p id="qr-nome-aluno" style="margin: 15px 0; font-weight: bold; color: var(--primary); font-size: 1.2rem;"></p>
+        <div id="qrcode-container" style="display: inline-block; padding: 10px; border: 1px solid #eee; background: white;"></div>
+        <div class="no-print" style="margin-top: 20px;">
+            <button class="btn" style="width:100%; justify-content: center;" onclick="window.print()">Imprimir Cartão</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b; justify-content: center;" onclick="fecharModais()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://127.0.0.1:5000/api"
         : window.location.origin + "/api";
 
@@ -19,17 +218,6 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
         document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
         document.getElementById(tabId).classList.add('active');
         element.classList.add('active');
-    }
-
-    function limparFiltroTextoData() {
-        if(document.getElementById('add-data-texto')) {
-            document.getElementById('add-data-texto').value = "";
-        }
-        document.getElementById('filtro-data-texto').value = "";
-    }
-
-    function limparFiltroCalendario() {
-        document.getElementById('filtro-data').value = "";
     }
 
     async function fazerLogin() {
@@ -62,29 +250,18 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
     }
 
     function filtrarHistorico() {
-        const dataCalendario = document.getElementById('filtro-data').value;
-        const dataTexto = document.getElementById('filtro-data-texto').value.trim();
+        const dataSel = document.getElementById('filtro-data').value;
         const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
-
         const linhas = document.querySelectorAll('#lista-historico-completo tr');
 
         linhas.forEach(linha => {
             const dataTxt = linha.children[0].innerText.trim();
             const salaTxt = linha.children[4].innerText.toLowerCase();
 
-            let bateData = false;
-
-            if (!dataCalendario && !dataTexto) {
-                bateData = true;
-            } else if (dataCalendario) {
-                bateData = (dataTxt === dataCalendario);
-            } else if (dataTexto) {
-                bateData = dataTxt.includes(dataTexto);
-            }
-
+            const bateData = !dataSel || dataTxt === dataSel;
             const bateSala = !salaSel || salaTxt.includes(salaSel);
 
-            if (bateData && bateSala) {
+            if(bateData && bateSala) {
                 linha.style.display = "";
             } else {
                 linha.style.display = "none";
@@ -120,27 +297,26 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
             const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
             const logsPresencas = await res.json();
 
-            const hoje = new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-');
+            const hoje = new Date().toISOString().split('T')[0];
             const presencasHoje = logsPresencas.filter(p => p.data === hoje);
             document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
             document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
-                const fluxo = p.tipo || "ENTRADA";
-                const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
+                const isEntrada = p.tipo === "ENTRADA";
+                const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
                 return `
                     <tr>
                         <td><strong>${p.aluno}</strong></td>
                         <td>${p.turma || 'N/A'}</td>
-                        <td><span class="badge ${badgeClass}">${fluxo}</span></td>
+                        <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
                         <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
                     </tr>
                 `;
             }).join('');
 
             document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-                const fluxo = p.tipo || "ENTRADA"; 
-                const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
-                
+                const isEntrada = p.tipo === "ENTRADA";
+                const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
                 return `
                     <tr>
                         <td>${p.data}</td>
@@ -148,7 +324,7 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
                         <td><code>${p.matricula}</code></td>
                         <td><strong>${p.aluno}</strong></td>
                         <td>${p.turma || 'N/A'}</td>
-                        <td><span class="badge ${badgeClass}">${fluxo}</span></td>
+                        <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
                     </tr>
                 `;
             }).join('');
@@ -168,13 +344,21 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
             cliente_id: config.id
         };
 
-        const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
-            method: isEdit ? 'PUT' : 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(dados)
-        });
+        try {
+            const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(dados)
+            });
 
-        if(res.ok) { fecharModais(); carregarAlunos(); carregarHistorico(); }
+            if(res.ok) { 
+                fecharModais(); 
+                carregarAlunos(); 
+                carregarHistorico(); 
+            }
+        } catch (e) {
+            console.error("Erro ao salvar aluno:", e);
+        }
     }
 
     function prepararEdicao(mat) {
@@ -198,8 +382,12 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
 
     async function removerAluno(mat) {
         if(confirm("Excluir este aluno?")) {
-            await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
-            carregarAlunos();
+            try {
+                await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
+                carregarAlunos();
+            } catch (e) {
+                console.error("Erro ao remover aluno:", e);
+            }
         }
     }
 
@@ -213,5 +401,7 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
     function fecharModais() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
     function sair() { localStorage.clear(); location.reload(); }
     
-    // Executa a inicialização
     iniciar();
+</script>
+</body>
+</html>
