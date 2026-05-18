@@ -341,21 +341,24 @@
         }).join('');
 
         // Histórico Geral Completo
-        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-            const fluxo = p.tipo || "ENTRADA";
-            const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
-            return `
-                <tr>
-                    <td>${p.data}</td>
-                    <td>${p.hora}</td>
-                    <td><code>${p.matricula}</code></td>
-                    <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma || 'N/A'}</td>
-                    <td><span class="badge ${badgeClass}">${fluxo}</span></td>
-                </tr>
-            `;
-        }).join('');
-    }
+        // Dentro da função carregarHistorico() no gestor.html:
+document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
+    // Garante que se p.tipo não existir por registros antigos, assume ENTRADA
+    const fluxo = p.tipo || "ENTRADA"; 
+    const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
+    
+    return `
+        <tr>
+            <td>${p.data}</td>
+            <td>${p.hora}</td>
+            <td><code>${p.matricula}</code></td>
+            <td><strong>${p.aluno}</strong></td>
+            <td>${p.turma || 'N/A'}</td>
+            <td><span class="badge ${badgeClass}">${fluxo}</span></td>
+        </tr>
+    `;
+}).join('');
+    
 
     async function salvarAluno() {
         const isEdit = document.getElementById('a-matricula').disabled;
