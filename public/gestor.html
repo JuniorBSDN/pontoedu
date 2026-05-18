@@ -54,11 +54,11 @@
 <body>
 
 <div id="login-area" class="no-print" style="position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000;">
-    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:400px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3);">
-        <h2 style="color:white; margin-bottom:0.5rem; font-weight:700;"><i class="fas fa-lock"></i> Ativação do Painel</h2>
-        <p style="color:#94a3b8; font-size:0.85rem; margin-bottom:1.5rem;">Insira abaixo o Token de Ativação gerado no Painel Master SaaS para liberar este terminal.</p>
-        <input type="text" id="l-token" placeholder="Cole o Token de Ativação (Base64)" style="background:#0f172a; border-color:#334155; color:white; padding:12px;">
-        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: #4f46e5;" onclick="fazerLoginPorToken()">Ativar Unidade</button>
+    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4);">
+        <h2 style="color:white; margin-bottom:1.5rem; font-weight: 700;">Gestão de Alunos</h2>
+        <input type="text" id="l-cnpj" placeholder="CNPJ da Instituição">
+        <input type="password" id="l-senha" placeholder="Senha de Acesso (Totem)">
+        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Painel</button>
     </div>
 </div>
 
@@ -79,7 +79,7 @@
     </div>
 
     <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer;">
-        <i class="fas fa-sign-out-alt"></i> Desativar Painel
+        <i class="fas fa-sign-out-alt"></i> Sair
     </button>
 </nav>
 
@@ -188,14 +188,16 @@
 </div>
 
 <script>
-    // Recupera a configuração inicial
+    // Identifica se está rodando local ou em produção (pontoedu.vercel.app)
+    const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://127.0.0.1:5000/api"
+        : window.location.origin + "/api";
+
     let config = JSON.parse(localStorage.getItem("config_gestor_alunos"));
-    // Define a API base dinamicamente com base na ativação ou fallback local
-    const API_URL = config && config.api ? config.api : (window.location.origin + "/api");
     let alunosAtuais = [];
 
     function iniciar() {
-        if (config && config.id) {
+        if (config) {
             document.getElementById('login-area').style.display = 'none';
             document.getElementById('unidade-nome').innerText = config.nome;
             carregarAlunos();
@@ -210,86 +212,81 @@
         element.classList.add('active');
     }
 
-    // NOVA FUNÇÃO DE AUTENTICAÇÃO INTEGRADA AO SAAS (DECODIFICA ATIVAÇÃO EM BASE64)
-    function fazerLoginPorToken() {
-        const tokenRaw = document.getElementById('l-token').value.trim();
-        if (!tokenRaw) {
-            alert("Por favor, insira o token gerado no painel administrativo.");
+    // FUNÇÃO QUE REQUISITA O LOGIN BASEADO NAS CREDENCIAIS CADASTRADAS NO INDEX.HTML
+    async function fazerLogin() {
+        const cnpjInput = document.getElementById('l-cnpj').value;
+        const cnpj = cnpjInput.replace(/\D/g, ''); // Limpa pontos, traços e barras
+        const senha = document.getElementById('l-senha').value.trim();
+
+        if (!cnpj || !senha) {
+            alert("Por favor, preencha o CNPJ e a Senha de Acesso.");
             return;
         }
 
         try {
-            // Decodifica a string Base64 criada originalmente no index.html
-            const decryptedData = JSON.parse(atob(tokenRaw));
+            const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ cnpj, senha })
+            });
 
-            if (decryptedData.id && decryptedData.nome) {
-                // Monta o objeto idêntico e preserva a rota de API correspondente ao SaaS
-                const novaConfig = {
-                    id: decryptedData.id,
-                    nome: decryptedData.nome,
-                    api: decryptedData.api || (window.location.origin + "/api")
-                };
-
-                localStorage.setItem("config_gestor_alunos", JSON.stringify(novaConfig));
+            if (res.ok) {
+                const dados = await res.json();
+                // Salva os dados retornados pela sua API em Python
+                localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
                 location.reload();
             } else {
-                alert("Token inválido ou corrompido.");
+                alert("Acesso negado! Verifique se digitou o CNPJ correto e a Senha de Acesso (Totem) cadastrada no Painel Master.");
             }
         } catch (e) {
-            alert("Falha ao descriptografar token. Verifique se copiou a chave inteira corretamente.");
+            alert("Erro de comunicação com o servidor de banco de dados.");
         }
     }
 
     async function carregarAlunos() {
-        try {
-            const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
-            if(!res.ok) throw new Error();
-            alunosAtuais = await res.json();
-            document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
+        const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
+        alunosAtuais = await res.json();
+        document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
 
-            document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
-                <tr>
-                    <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
-                    <td>${a.turma || 'Não definida'}</td>
-                    <td>${a.responsavel || '---'}</td>
-                    <td style="text-align: right;">
-                        <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
-                        <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
-                        <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
-        } catch(err) { console.error("Erro ao obter dados dos alunos."); }
+        document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
+            <tr>
+                <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
+                <td>${a.turma || 'Não definida'}</td>
+                <td>${a.responsavel || '---'}</td>
+                <td style="text-align: right;">
+                    <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
+                    <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
+                    <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
     }
 
     async function carregarHistorico() {
-        try {
-            const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
-            if(!res.ok) throw new Error();
-            const logsPresencas = await res.json();
+        const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
+        const logsPresencas = await res.json();
 
-            const hoje = new Date().toISOString().split('T')[0];
-            const presencasHoje = logsPresencas.filter(p => p.data === hoje);
-            document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
+        const hoje = new Date().toISOString().split('T')[0];
+        const presencasHoje = logsPresencas.filter(p => p.data === hoje);
+        document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-            document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => `
-                <tr>
-                    <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                    <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
-                </tr>
-            `).join('');
+        document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => `
+            <tr>
+                <td><strong>${p.aluno}</strong></td>
+                <td>${p.turma}</td>
+                <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
+            </tr>
+        `).join('');
 
-            document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => `
-                <tr>
-                    <td>${p.data}</td>
-                    <td>${p.hora}</td>
-                    <td><code>${p.matricula}</code></td>
-                    <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                </tr>
-            `).join('');
-        } catch(err) { console.error("Erro ao obter histórico."); }
+        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => `
+            <tr>
+                <td>${p.data}</td>
+                <td>${p.hora}</td>
+                <td><code>${p.matricula}</code></td>
+                <td><strong>${p.aluno}</strong></td>
+                <td>${p.turma}</td>
+            </tr>
+        `).join('');
     }
 
     async function salvarAluno() {
