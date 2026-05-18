@@ -200,7 +200,7 @@
 </div>
 
 <script>
-    // Configuração Inteligente de Ambiente (Localhost vs Produção Vercel)
+    // Configuração Inteligente e Automática de Rota (Localhost vs Produção Vercel)
     const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://127.0.0.1:5000/api"
         : window.location.origin + "/api";
@@ -256,7 +256,7 @@
     async function carregarAlunos() {
         try {
             const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
-            if(!res.ok) return;
+            if (!res.ok) return;
             alunosAtuais = await res.json();
             document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
 
@@ -272,20 +272,22 @@
                     </td>
                 </tr>
             `).join('');
-        } catch(e) { console.error("Erro ao obter alunos:", e); }
+        } catch (e) {
+            console.error("Erro ao carregar alunos:", e);
+        }
     }
 
     async function carregarHistorico() {
         try {
             const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
-            if(!res.ok) return;
+            if (!res.ok) return;
             const logsPresencas = await res.json();
 
             const hoje = new Date().toISOString().split('T')[0];
             const presencasHoje = logsPresencas.filter(p => p.data === hoje);
             document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-            // Renderiza as últimas 5 movimentações no Dashboard
+            // Renderiza as 5 movimentações mais recentes no Dashboard
             document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
                 const tipoMov = p.tipo || "ENTRADA";
                 const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
@@ -299,7 +301,7 @@
                 `;
             }).join('');
 
-            // Preenche o histórico completo de Logs
+            // Preenche o histórico completo na aba de logs
             document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
                 const tipoMov = p.tipo || "ENTRADA";
                 const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
@@ -315,29 +317,33 @@
                 `;
             }).join('');
 
-            // Mantém a exibição padrão completa se nenhum filtro for digitado
+            // Executa a filtragem para garantir que tudo é mostrado inicialmente (campos vazios)
             filtrarHistorico();
-        } catch(e) { console.error("Erro ao obter histórico:", e); }
+        } catch (e) {
+            console.error("Erro ao carregar histórico:", e);
+        }
     }
 
+    // Função de filtragem corrigida: não esconde as informações se os campos estiverem vazios
     function filtrarHistorico() {
-        const mesSel = document.getElementById('filtro-mes').value; 
+        const mesSel = document.getElementById('filtro-mes').value; // Formato: "YYYY-MM"
         const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
+        
         const linhas = document.querySelectorAll('#lista-historico-completo tr');
         
         linhas.forEach(linha => {
             if (linha.children.length < 5) return;
             
-            const dataTxt = linha.children[0].innerText; 
-            const salaTxt = linha.children[4].innerText.toLowerCase(); 
+            const dataTxt = linha.children[0].innerText; // Coluna 1: Data (YYYY-MM-DD)
+            const salaTxt = linha.children[4].innerText.toLowerCase(); // Coluna 5: Turma
             
             const bateMes = !mesSel || dataTxt.startsWith(mesSel);
             const bateSala = !salaSel || salaTxt.includes(salaSel);
             
             if (bateMes && bateSala) {
-                linha.style.display = "";
+                linha.style.display = ""; // Mostra a linha
             } else {
-                linha.style.display = "none";
+                linha.style.display = "none"; // Oculta a linha
             }
         });
     }
@@ -360,7 +366,7 @@
             body: JSON.stringify(dados)
         });
 
-        if(res.ok) { fecharModais(); carregarAlunos(); carregarHistorico(); }
+        if (res.ok) { fecharModais(); carregarAlunos(); carregarHistorico(); }
     }
 
     function prepararEdicao(mat) {
@@ -384,7 +390,7 @@
     }
 
     async function removerAluno(mat) {
-        if(confirm("Excluir este aluno?")) {
+        if (confirm("Excluir este aluno?")) {
             await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
             carregarAlunos();
         }
