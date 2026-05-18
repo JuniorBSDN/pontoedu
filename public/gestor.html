@@ -62,7 +62,7 @@
         <h2 style="color:white; margin-bottom:1.5rem; font-weight: 700;">Gestão de Alunos</h2>
         <input type="text" id="l-cnpj" placeholder="CNPJ da Instituição">
         <input type="password" id="l-senha" placeholder="Senha de Acesso (Totem)">
-        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Painel</button>
+        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Panel</button>
     </div>
 </div>
 
@@ -250,15 +250,23 @@
     }
 
     function filtrarHistorico() {
-        const dataSel = document.getElementById('filtro-data').value;
+        const dataSel = document.getElementById('filtro-data').value; // Retorna AAAA-MM-DD
         const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
         const linhas = document.querySelectorAll('#lista-historico-completo tr');
 
+        // Convierte AAAA-MM-DD a DD/MM/AAAA por si tu backend guarda en formato latino
+        let dataSelFormatada = "";
+        if (dataSel) {
+            const partes = dataSel.split('-');
+            dataSelFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
         linhas.forEach(linha => {
-            const dataTxt = linha.children[0].innerText.trim();
+            const dataTxt = linha.children[0].innerText.trim(); // Captura el texto de la celda de fecha
             const salaTxt = linha.children[4].innerText.toLowerCase();
 
-            const bateData = !dataSel || dataTxt === dataSel;
+            // Valida contra ambos formatos de fecha (ISO y Latino) por seguridad
+            const bateData = !dataSel || dataTxt === dataSel || dataTxt === dataSelFormatada;
             const bateSala = !salaSel || salaTxt.includes(salaSel);
 
             if(bateData && bateSala) {
@@ -272,6 +280,8 @@
     async function carregarAlunos() {
         try {
             const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
+            if (!res.ok) throw new Error("Erro na resposta do servidor de alunos");
+            
             alunosAtuais = await res.json();
             document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
 
@@ -289,34 +299,42 @@
             `).join('');
         } catch (e) {
             console.error("Erro ao carregar alunos:", e);
+            document.getElementById('lista-alunos').innerHTML = `<tr><td colspan="4" style="color:var(--danger); text-align:center;">Erro ao carregar lista de alunos.</td></tr>`;
         }
     }
 
     async function carregarHistorico() {
         try {
             const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
+            if (!res.ok) throw new Error("Erro na resposta do servidor de pontos");
+            
             const logsPresencas = await res.json();
 
-            const hoje = new Date().toISOString().split('T')[0];
-            const presencasHoje = logsPresencas.filter(p => p.data === hoje);
+            // Captura la fecha de hoy tanto en formato ISO como local para asegurar coincidencia
+            const hojeISO = new Date().toISOString().split('T')[0];
+            const hojeLocal = new Date().toLocaleDateString('pt-BR');
+
+            const presencasHoje = logsPresencas.filter(p => p.data === hojeISO || p.data === hojeLocal);
             document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
+            // Renderiza las 5 batidas más recientes en el Dashboard
             document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
-                const isEntrada = p.tipo === "ENTRADA";
-                const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+                const tipoFluxo = p.tipo || "ENTRADA";
+                const badgeClass = tipoFluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
                 return `
                     <tr>
                         <td><strong>${p.aluno}</strong></td>
                         <td>${p.turma || 'N/A'}</td>
-                        <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
+                        <td><span class="badge ${badgeClass}">${tipoFluxo}</span></td>
                         <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
                     </tr>
                 `;
             }).join('');
 
+            // Histórico General Completo
             document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-                const isEntrada = p.tipo === "ENTRADA";
-                const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+                const tipoFluxo = p.tipo || "ENTRADA";
+                const badgeClass = tipoFluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
                 return `
                     <tr>
                         <td>${p.data}</td>
@@ -324,12 +342,14 @@
                         <td><code>${p.matricula}</code></td>
                         <td><strong>${p.aluno}</strong></td>
                         <td>${p.turma || 'N/A'}</td>
-                        <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
+                        <td><span class="badge ${badgeClass}">${tipoFluxo}</span></td>
                     </tr>
                 `;
             }).join('');
         } catch (e) {
             console.error("Erro ao carregar histórico:", e);
+            document.getElementById('lista-ponto-recente').innerHTML = `<tr><td colspan="4" style="color:var(--danger); text-align:center;">Erro ao obter dados recentes.</td></tr>`;
+            document.getElementById('lista-historico-completo').innerHTML = `<tr><td colspan="6" style="color:var(--danger); text-align:center;">Erro ao processar o histórico de registros.</td></tr>`;
         }
     }
 
@@ -355,14 +375,18 @@
                 fecharModais(); 
                 carregarAlunos(); 
                 carregarHistorico(); 
+            } else {
+                alert("Erro ao salvar os dados do aluno no servidor.");
             }
         } catch (e) {
             console.error("Erro ao salvar aluno:", e);
+            alert("Falha de conexão com a API.");
         }
     }
 
     function prepararEdicao(mat) {
         const a = alunosAtuais.find(x => x.matricula === mat);
+        if(!a) return;
         document.getElementById('a-nome').value = a.nome;
         document.getElementById('a-matricula').value = a.matricula;
         document.getElementById('a-matricula').disabled = true;
@@ -381,10 +405,14 @@
     }
 
     async function removerAluno(mat) {
-        if(confirm("Excluir este aluno?")) {
+        if(confirm("Excluir este aluno definitivamente?")) {
             try {
-                await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
-                carregarAlunos();
+                const res = await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
+                if(res.ok) {
+                    carregarAlunos();
+                } else {
+                    alert("Não foi possível remover o aluno.");
+                }
             } catch (e) {
                 console.error("Erro ao remover aluno:", e);
             }
