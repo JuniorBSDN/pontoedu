@@ -181,7 +181,8 @@ def registrar_ponto():
 
 @app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
 def historico_unidade(cliente_id):
-    docs = db.collection('pontos').where('cliente_id', '==', cliente_id).get()
+    # CORREÇÃO: Filtrando por 'id_cliente' que é como está salvo no seu banco de dados
+    docs = db.collection('pontos').where('id_cliente', '==', cliente_id).get()
     lista = [d.to_dict() for d in docs]
     lista.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
     return jsonify(lista)
