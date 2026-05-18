@@ -62,7 +62,7 @@
         <h2 style="color:white; margin-bottom:1.5rem; font-weight: 700;">Gestão de Alunos</h2>
         <input type="text" id="l-cnpj" placeholder="CNPJ da Instituição">
         <input type="password" id="l-senha" placeholder="Senha de Acesso (Totem)">
-        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Painel</button>
+        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Panel</button>
     </div>
 </div>
 
@@ -140,10 +140,16 @@
     </div>
 
     <div id="tab-logs" class="tab-content">
-        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-    <input type="month" id="filtro-mes" onchange="filtrarHistorico()" style="margin:0; max-width:200px;">
-    <input type="text" id="filtro-sala" placeholder="Filtrar por Turma/Sala" oninput=filtrarHistorico() style="margin:0; max-width:200px;">
-</div>
+        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <small style="color:#64748b; font-weight:600;">Filtrar por Data:</small>
+                <input type="date" id="filtro-data" onchange="filtrarHistorico()" style="margin:0; width:170px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <small style="color:#64748b; font-weight:600;">Filtrar por Turma:</small>
+                <input type="text" id="filtro-sala" placeholder="Ex: 9º Ano A" oninput="filtrarHistorico()" style="margin:0; max-width:180px;">
+            </div>
+        </div>
         <header style="margin-bottom:2.5rem;">
             <h1>Histórico de Frequência</h1>
             <p style="color: #64748b;">Arquivo completo de acessos cronológicos.</p>
@@ -235,8 +241,8 @@
                 const dados = await res.json();
                 localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
                 location.reload();
-            } else { 
-                alert("Acesso negado! Verifique suas credenciais."); 
+            } else {
+                alert("Acesso negado! Verifique suas credenciais.");
             }
         } catch (e) {
             alert("Erro de comunicação com o servidor.");
@@ -244,81 +250,107 @@
     }
 
     function filtrarHistorico() {
-    const mesSel = document.getElementById('filtro-mes').value; // Retorna "YYYY-MM"
-    const salaSel = document.getElementById('filtro-sala').value.toLowerCase();
-    
-    const linhas = document.querySelectorAll('#lista-historico-completo tr');
-    
-    linhas.forEach(linha => {
-        const dataTxt = linha.children[0].innerText; // Coluna da Data (YYYY-MM-DD)
-        const salaTxt = linha.children[4].innerText.toLowerCase(); // Coluna da Turma
-        
-        const bateMes = !mesSel || dataTxt.startsWith(mesSel);
-        const bateSala = !salaSel || salaTxt.includes(salaSel);
-        
-        if(bateMes && bateSala) {
-            linha.style.display = "";
-        } else {
-            linha.style.display = "none";
-        }
-    });
-}
-    async function carregarAlunos() {
-        const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
-        alunosAtuais = await res.json();
-        document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
+        const dataSel = document.getElementById('filtro-data').value; // Retorna AAAA-MM-DD
+        const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
+        const linhas = document.querySelectorAll('#lista-historico-completo tr');
 
-        document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
-            <tr>
-                <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
-                <td>${a.turma || 'Não definida'}</td>
-                <td>${a.responsavel || '---'}</td>
-                <td style="text-align: right;">
-                    <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
-                    <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
-                    <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
+        // Convierte AAAA-MM-DD a DD/MM/AAAA por si tu backend guarda en formato latino
+        let dataSelFormatada = "";
+        if (dataSel) {
+            const partes = dataSel.split('-');
+            dataSelFormatada = `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        linhas.forEach(linha => {
+            const dataTxt = linha.children[0].innerText.trim(); // Captura el texto de la celda de fecha
+            const salaTxt = linha.children[4].innerText.toLowerCase();
+
+            // Valida contra ambos formatos de fecha (ISO y Latino) por seguridad
+            const bateData = !dataSel || dataTxt === dataSel || dataTxt === dataSelFormatada;
+            const bateSala = !salaSel || salaTxt.includes(salaSel);
+
+            if(bateData && bateSala) {
+                linha.style.display = "";
+            } else {
+                linha.style.display = "none";
+            }
+        });
+    }
+
+    async function carregarAlunos() {
+        try {
+            const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
+            if (!res.ok) throw new Error("Erro na resposta do servidor de alunos");
+            
+            alunosAtuais = await res.json();
+            document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
+
+            document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
+                <tr>
+                    <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
+                    <td>${a.turma || 'Não definida'}</td>
+                    <td>${a.responsavel || '---'}</td>
+                    <td style="text-align: right;">
+                        <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
+                        <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
+                        <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            console.error("Erro ao carregar alunos:", e);
+            document.getElementById('lista-alunos').innerHTML = `<tr><td colspan="4" style="color:var(--danger); text-align:center;">Erro ao carregar lista de alunos.</td></tr>`;
+        }
     }
 
     async function carregarHistorico() {
-        const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
-        const logsPresencas = await res.json();
+        try {
+            const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
+            if (!res.ok) throw new Error("Erro na resposta do servidor de pontos");
+            
+            const logsPresencas = await res.json();
 
-        const hoje = new Date().toISOString().split('T')[0];
-        const presencasHoje = logsPresencas.filter(p => p.data === hoje);
-        document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
+            // Captura la fecha de hoy tanto en formato ISO como local para asegurar coincidencia
+            const hojeISO = new Date().toISOString().split('T')[0];
+            const hojeLocal = new Date().toLocaleDateString('pt-BR');
 
-        // Renderiza as 5 batidas mais recentes no Dashboard discriminando Entrada/Saída
-        document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
-            const isEntrada = p.tipo === "ENTRADA";
-            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
-            return `
-                <tr>
-                    <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                    <td><span class="badge ${badgeClass}">${p.tipo}</span></td>
-                    <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
-                </tr>
-            `;
-        }).join('');
+            const presencasHoje = logsPresencas.filter(p => p.data === hojeISO || p.data === hojeLocal);
+            document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-        // Histórico Geral
-        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-            const isEntrada = p.tipo === "ENTRADA";
-            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
-            return `
-                <tr>
-                    <td>${p.data}</td>
-                    <td>${p.hora}</td>
-                    <td><code>${p.matricula}</code></td>
-                    <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                    <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
-                </tr>
-            `;
-        }).join('');
+            // Renderiza las 5 batidas más recientes en el Dashboard
+            document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
+                const tipoFluxo = p.tipo || "ENTRADA";
+                const badgeClass = tipoFluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
+                return `
+                    <tr>
+                        <td><strong>${p.aluno}</strong></td>
+                        <td>${p.turma || 'N/A'}</td>
+                        <td><span class="badge ${badgeClass}">${tipoFluxo}</span></td>
+                        <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Histórico General Completo
+            document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
+                const tipoFluxo = p.tipo || "ENTRADA";
+                const badgeClass = tipoFluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
+                return `
+                    <tr>
+                        <td>${p.data}</td>
+                        <td>${p.hora}</td>
+                        <td><code>${p.matricula}</code></td>
+                        <td><strong>${p.aluno}</strong></td>
+                        <td>${p.turma || 'N/A'}</td>
+                        <td><span class="badge ${badgeClass}">${tipoFluxo}</span></td>
+                    </tr>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error("Erro ao carregar histórico:", e);
+            document.getElementById('lista-ponto-recente').innerHTML = `<tr><td colspan="4" style="color:var(--danger); text-align:center;">Erro ao obter dados recentes.</td></tr>`;
+            document.getElementById('lista-historico-completo').innerHTML = `<tr><td colspan="6" style="color:var(--danger); text-align:center;">Erro ao processar o histórico de registros.</td></tr>`;
+        }
     }
 
     async function salvarAluno() {
@@ -332,17 +364,29 @@
             cliente_id: config.id
         };
 
-        const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
-            method: isEdit ? 'PUT' : 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(dados)
-        });
+        try {
+            const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(dados)
+            });
 
-        if(res.ok) { fecharModais(); carregarAlunos(); carregarHistorico(); }
+            if(res.ok) { 
+                fecharModais(); 
+                carregarAlunos(); 
+                carregarHistorico(); 
+            } else {
+                alert("Erro ao salvar os dados do aluno no servidor.");
+            }
+        } catch (e) {
+            console.error("Erro ao salvar aluno:", e);
+            alert("Falha de conexão com a API.");
+        }
     }
 
     function prepararEdicao(mat) {
         const a = alunosAtuais.find(x => x.matricula === mat);
+        if(!a) return;
         document.getElementById('a-nome').value = a.nome;
         document.getElementById('a-matricula').value = a.matricula;
         document.getElementById('a-matricula').disabled = true;
@@ -361,9 +405,17 @@
     }
 
     async function removerAluno(mat) {
-        if(confirm("Excluir este aluno?")) {
-            await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
-            carregarAlunos();
+        if(confirm("Excluir este aluno definitivamente?")) {
+            try {
+                const res = await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
+                if(res.ok) {
+                    carregarAlunos();
+                } else {
+                    alert("Não foi possível remover o aluno.");
+                }
+            } catch (e) {
+                console.error("Erro ao remover aluno:", e);
+            }
         }
     }
 
@@ -376,6 +428,7 @@
 
     function fecharModais() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
     function sair() { localStorage.clear(); location.reload(); }
+    
     iniciar();
 </script>
 </body>
