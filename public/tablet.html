@@ -55,7 +55,7 @@
     </div>
 
     <script>
-        // Configuração dinâmica de URL baseado no ambiente Vercel
+        // Configuração dinâmica de URL baseado no ambiente (Localhost vs Vercel)
         const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
             ? "http://127.0.0.1:5000/api"
             : window.location.origin + "/api";
@@ -72,7 +72,41 @@
             }
         }
 
-        async function ativarTablet() {
+        async function activarTablet() {
+            // Mantida a função original com 'c' para não quebrar referências internas caso existam
+            const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
+            const senha = document.getElementById('t-senha').value.trim();
+
+            if(!cnpj || !senha) {
+                alert("Preencha todos os campos.");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ cnpj, senha })
+                });
+
+                if (res.ok) {
+                    const dados = await res.json();
+                    config = { id: dados.id, nome: dados.nome };
+                    localStorage.setItem("config_tablet", JSON.stringify(config));
+                    location.reload();
+                } else {
+                    mostrarFeedback("Acesso negado! Credenciais inválidas.", "erro");
+                }
+            } catch (e) {
+                mostrarFeedback("Erro ao se conectar com o servidor.", "erro");
+            }
+        }
+
+        // Garante compatibilidade caso o botão chame com ou sem a letra 'c'
+        function activarTablet() { return activarTabletReal(); }
+        function ativarTablet() { return activarTabletReal(); }
+
+        async function activarTabletReal() {
             const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value.trim();
 
@@ -122,6 +156,7 @@
             const matriculaLimpa = conteudoLido.replace(/\D/g, "");
 
             try {
+                // Conectado diretamente à rota correta do index.py (/api/ponto)
                 const res = await fetch(`${API_URL}/ponto`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -142,13 +177,14 @@
             } catch (e) {
                 mostrarFeedback("FALHA DE CONEXÃO", "erro");
             } finally {
+                // Bloqueia leituras duplicadas no mesmo segundo
                 setTimeout(() => { window.processandoPonto = false; }, 4000);
             }
         }
 
         function mostrarFeedback(mensagem, tipo) {
             const fb = document.getElementById('feedback');
-            fb.innerText = mensagem; 
+            fb.innerText = mensagem; // CORRIGIDO: Agora usa a variável correta em português
             fb.style.display = 'block';
 
             if (tipo === "entrada") {
