@@ -6,20 +6,28 @@
     <title>PontoEdu | Terminal Tablet</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; }
+        :root {
+            --primary: #4f46e5;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --success: #10b981; /* Verde esmeralda para entrada */
+            --info: #3b82f6;    /* Azul para saída */
+            --danger: #ef4444;
+        }
         body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
         .card { background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
         button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; }
         button:hover { opacity: 0.9; }
         #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; border: 2px solid #334155; background: #000; min-height: 250px; }
+
         #feedback {
             display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            padding: 20px 40px; border-radius: 12px; font-size: 1.3rem; font-weight: bold;
-            z-index: 9999; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.4);
-            animation: slideDown 0.5s ease-out; white-space: pre-wrap;
+            padding: 25px 40px; border-radius: 12px; font-size: 1.4rem; font-weight: bold;
+            z-index: 9999; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            animation: slideDown 0.4s ease-out; white-space: pre-wrap; width: 85%; max-width: 400px;
         }
-        @keyframes slideDown { from { top: -100px; } to { top: 20px; } }
+        @keyframes slideDown { from { top: -120px; } to { top: 20px; } }
         .info-text { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
         #nome-unidade { color: #818cf8; font-weight: bold; }
     </style>
@@ -30,7 +38,7 @@
 
     <div id="login-area" class="card">
         <h2>Ativar Totem Tablet</h2>
-        <p class="info-text">Identifique a unidade de ensino com o CNPJ e a senha gerada no Painel Master</p>
+        <p class="info-text">Identifique a escola usando o CNPJ e Senha configurados no painel administrativo.</p>
         <input type="text" id="t-cnpj" placeholder="CNPJ da Escola">
         <input type="password" id="t-senha" placeholder="Senha de Acesso (Totem)">
         <button onclick="ativarTablet()">Ativar Dispositivo</button>
@@ -42,12 +50,12 @@
 
         <div id="reader"></div>
 
-        <p class="info-text">O sistema impedirá duplicidades automáticas no mesmo dia.</p>
-        <button onclick="sair()" style="margin-top: 20px; background: #334155; padding: 8px;">Sair / Trocar Escola</button>
+        <p class="info-text">O sistema registrará Saída automaticamente se o aluno já tiver entrado hoje.</p>
+        <button onclick="sair()" style="margin-top: 20px; background: #334155; padding: 8px;">Sair / Desativar Totem</button>
     </div>
 
     <script>
-        // Configuração dinâmica para localhost ou produção Vercel
+        // Configuração dinâmica de URL baseado no ambiente Vercel
         const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
             ? "http://127.0.0.1:5000/api"
             : window.location.origin + "/api";
@@ -64,12 +72,13 @@
             }
         }
 
-        async function ativarTablet() {
+        async function activarTablet() {
+            // Código corrigido para enviar login tablet conforme o index.py espera
             const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value.trim();
 
-            if (!cnpj || !senha) {
-                alert("Por favor, informe o CNPJ e a Senha.");
+            if(!cnpj || !senha) {
+                alert("Preencha todos os campos.");
                 return;
             }
 
@@ -85,36 +94,30 @@
                     config = { id: dados.id, nome: dados.nome };
                     localStorage.setItem("config_tablet", JSON.stringify(config));
                     location.reload();
-                } else { 
-                    mostrarFeedback("Acesso negado! Dados incorretos.", "erro"); 
+                } else {
+                    mostrarFeedback("Acesso negado! Credenciais inválidas.", "erro");
                 }
-            } catch (e) { 
-                mostrarFeedback("Erro ao conectar com o servidor", "erro"); 
+            } catch (e) {
+                mostrarFeedback("Erro ao se conectar com o servidor.", "erro");
             }
         }
 
-        // FUNÇÃO DE INICIALIZAÇÃO INVISÍVEL E DIRETA DA CÂMERA
         function startScannerDireto() {
-            // Instancia o leitor puro sem botões ou UI nativa da biblioteca
             html5Qrcode = new Html5Qrcode("reader");
-
-            // Configurações do leitor (focado em QR codes e boa taxa de quadros)
             const configScanner = { fps: 15, qrbox: { width: 250, height: 250 } };
 
-            // Tenta abrir preferencialmente a câmera traseira ("environment") sem interação humana
+            // Inicializa diretamente puxando a câmera traseira (ideal para totens fixos)
             html5Qrcode.start(
-                { facingMode: "environment" }, 
+                { facingMode: "environment" },
                 configScanner,
                 onScanSuccess
             ).catch(err => {
-                console.warn("Falha ao abrir câmera traseira, tentando qualquer câmera disponível...", err);
-                // Fallback caso seja um computador ou tablet sem especificação de câmera traseira
+                // Se falhar (ex: tablet sem câmera traseira definida), tenta a frontal
                 html5Qrcode.start({ facingMode: "user" }, configScanner, onScanSuccess)
-                    .catch(e => console.error("Não foi possível acessar nenhuma câmera.", e));
+                    .catch(e => console.error("Nenhuma câmera encontrada.", e));
             });
         }
 
-        // Callback disparado assim que um QR Code passa em frente à câmera
         async function onScanSuccess(conteudoLido) {
             if (window.processandoPonto) return;
             window.processandoPonto = true;
@@ -134,15 +137,18 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    let msg = `PRESENÇA CONFIRMADA!\nAluno: ${data.aluno}\nTurma: ${data.turma}\nHora: ${data.hora}`;
-                    mostrarFeedback(msg, "sucesso");
+                    // O backend do seu index.py retorna data.tipo como "ENTRADA" ou "SAÍDA"
+                    let acao = data.tipo === "ENTRADA" ? "ENTRADA CONFIRMADA!" : "SAÍDA CONFIRMADA!";
+                    let msg = `${acao}\n\nAluno: ${data.aluno}\nTurma: ${data.turma}\nHora: ${data.hora}`;
+
+                    mostrarFeedback(msg, data.tipo.toLowerCase());
                 } else {
                     mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
                 }
             } catch (e) {
-                mostrarFeedback("FALHA DE COMUNICAÇÃO", "erro");
+                mostrarFeedback("FALHA DE CONEXÃO", "erro");
             } finally {
-                // Mantém travado por 4 segundos para o aluno sair da frente sem registrar duas vezes
+                // Aguarda 4 segundos antes de liberar o próximo aluno (evita loops)
                 setTimeout(() => { window.processandoPonto = false; }, 4000);
             }
         }
@@ -151,7 +157,17 @@
             const fb = document.getElementById('feedback');
             fb.innerText = mensagem;
             fb.style.display = 'block';
-            fb.style.background = tipo === "sucesso" ? "var(--success)" : "var(--danger)";
+
+            // Customização dinâmica das cores de feedback com base no tipo retornado pelo index.py
+            if (tipo === "entrada") {
+                fb.style.background = "var(--success)"; // Verde Matrix para Entrada
+            } else if (tipo === "saída" || tipo === "saida") {
+                fb.style.background = "var(--info)";    // Azul para Saída
+            } else {
+                fb.style.background = "var(--danger)";  // Vermelho para erros de matrícula/escola
+            }
+
+            // Oculta a mensagem um pouco antes do leitor reativar
             setTimeout(() => { fb.style.display = 'none'; }, 3500);
         }
 
