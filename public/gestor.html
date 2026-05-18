@@ -40,6 +40,10 @@
         .btn:hover { opacity: 0.9; }
         .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; }
 
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .badge-entrada { background: #ecfdf5; color: #059669; }
+        .badge-saida { background: #eff6ff; color: #2563eb; }
+
         .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; backdrop-filter: blur(4px); }
         .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:500px; position: relative; }
         input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; background: white; color: #1e293b; }
@@ -65,26 +69,22 @@
 <nav class="sidebar no-print">
     <div>
         <h2 style="color:#10b981; margin-bottom: 2rem;">PontoEdu</h2>
-
         <div style="margin-bottom: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 1rem;">
             <small style="color:#94a3b8; text-transform: uppercase; font-size: 0.7rem;">Escola:</small>
             <strong id="unidade-nome" style="display:block; color: white; font-size: 1.1rem;">---</strong>
         </div>
-
         <div class="sidebar-menu">
             <div class="nav-link active" onclick="switchTab('tab-dash', this)"><i class="fas fa-chart-pie"></i> Dashboard</div>
             <div class="nav-link" onclick="switchTab('tab-alunos', this)"><i class="fas fa-user-graduate"></i> Alunos</div>
             <div class="nav-link" onclick="switchTab('tab-logs', this)"><i class="fas fa-clipboard-list"></i> Histórico / Logs</div>
         </div>
     </div>
-
     <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer;">
         <i class="fas fa-sign-out-alt"></i> Sair
     </button>
 </nav>
 
 <main class="main">
-
     <div id="tab-dash" class="tab-content active">
         <header style="margin-bottom:2.5rem;">
             <h1>Visão Geral</h1>
@@ -92,7 +92,7 @@
         </header>
         <div class="grid-stats">
             <div class="card">
-                <small style="color: #64748b; font-weight:600; text-transform:uppercase;">Presenças Hoje</small>
+                <small style="color: #64748b; font-weight:600; text-transform:uppercase;">Movimentações Hoje</small>
                 <h2 id="dash-presencas-hoje" style="font-size: 2.5rem; color: var(--primary); margin-top: 0.5rem;">0</h2>
             </div>
             <div class="card">
@@ -101,13 +101,14 @@
             </div>
         </div>
         <div class="card">
-            <h3>Últimas Entradas</h3>
+            <h3>Últimas Movimentações (Entradas/Saídas)</h3>
             <table>
                 <thead>
                     <tr>
                         <th>Nome do Aluno</th>
                         <th>Série / Turma</th>
-                        <th>Horário de Batida</th>
+                        <th>Fluxo</th>
+                        <th>Horário</th>
                     </tr>
                 </thead>
                 <tbody id="lista-ponto-recente"></tbody>
@@ -123,7 +124,6 @@
             </div>
             <button class="btn" onclick="abrirModalAluno()"><i class="fas fa-user-plus"></i> Novo Aluno</button>
         </header>
-
         <div class="card">
             <table>
                 <thead>
@@ -153,6 +153,7 @@
                         <th>Matrícula</th>
                         <th>Estudante</th>
                         <th>Turma</th>
+                        <th>Tipo</th>
                     </tr>
                 </thead>
                 <tbody id="lista-historico-completo"></tbody>
@@ -168,8 +169,6 @@
         <input type="text" id="a-matricula" placeholder="Nº Matrícula (Apenas números)">
         <input type="text" id="a-turma" placeholder="Série/Turma (Ex: 9º Ano A)">
         <input type="text" id="a-responsavel" placeholder="Nome do Responsável">
-        <input type="text" id="a-senha" placeholder="Senha de Acesso (Totem)">
-
         <button class="btn" style="width:100%; margin-top:1rem; justify-content: center;" onclick="salvarAluno()">Salvar Aluno</button>
         <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
     </div>
@@ -188,7 +187,6 @@
 </div>
 
 <script>
-    // Identifica se está rodando local ou em produção (pontoedu.vercel.app)
     const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://127.0.0.1:5000/api"
         : window.location.origin + "/api";
@@ -212,14 +210,13 @@
         element.classList.add('active');
     }
 
-    // FUNÇÃO QUE REQUISITA O LOGIN BASEADO NAS CREDENCIAIS CADASTRADAS NO INDEX.HTML
     async function fazerLogin() {
         const cnpjInput = document.getElementById('l-cnpj').value;
-        const cnpj = cnpjInput.replace(/\D/g, ''); // Limpa pontos, traços e barras
+        const cnpj = cnpjInput.replace(/\D/g, '');
         const senha = document.getElementById('l-senha').value.trim();
 
         if (!cnpj || !senha) {
-            alert("Por favor, preencha o CNPJ e a Senha de Acesso.");
+            alert("Por favor, preencha o CNPJ e a Senha.");
             return;
         }
 
@@ -232,14 +229,13 @@
 
             if (res.ok) {
                 const dados = await res.json();
-                // Salva os dados retornados pela sua API em Python
                 localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
                 location.reload();
-            } else {
-                alert("Acesso negado! Verifique se digitou o CNPJ correto e a Senha de Acesso (Totem) cadastrada no Painel Master.");
+            } else { 
+                alert("Acesso negado! Verifique suas credenciais."); 
             }
         } catch (e) {
-            alert("Erro de comunicação com o servidor de banco de dados.");
+            alert("Erro de comunicação com o servidor.");
         }
     }
 
@@ -270,23 +266,35 @@
         const presencasHoje = logsPresencas.filter(p => p.data === hoje);
         document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-        document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => `
-            <tr>
-                <td><strong>${p.aluno}</strong></td>
-                <td>${p.turma}</td>
-                <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
-            </tr>
-        `).join('');
+        // Renderiza as 5 batidas mais recentes no Dashboard discriminando Entrada/Saída
+        document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
+            const isEntrada = p.tipo === "ENTRADA";
+            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            return `
+                <tr>
+                    <td><strong>${p.aluno}</strong></td>
+                    <td>${p.turma}</td>
+                    <td><span class="badge ${badgeClass}">${p.tipo}</span></td>
+                    <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
+                </tr>
+            `;
+        }).join('');
 
-        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => `
-            <tr>
-                <td>${p.data}</td>
-                <td>${p.hora}</td>
-                <td><code>${p.matricula}</code></td>
-                <td><strong>${p.aluno}</strong></td>
-                <td>${p.turma}</td>
-            </tr>
-        `).join('');
+        // Histórico Geral
+        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
+            const isEntrada = p.tipo === "ENTRADA";
+            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            return `
+                <tr>
+                    <td>${p.data}</td>
+                    <td>${p.hora}</td>
+                    <td><code>${p.matricula}</code></td>
+                    <td><strong>${p.aluno}</strong></td>
+                    <td>${p.turma}</td>
+                    <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
+                </tr>
+            `;
+        }).join('');
     }
 
     async function salvarAluno() {
@@ -297,7 +305,6 @@
             matricula: matricula,
             turma: document.getElementById('a-turma').value,
             responsavel: document.getElementById('a-responsavel').value,
-            senha: document.getElementById('a-senha').value,
             cliente_id: config.id
         };
 
@@ -317,7 +324,6 @@
         document.getElementById('a-matricula').disabled = true;
         document.getElementById('a-turma').value = a.turma || "";
         document.getElementById('a-responsavel').value = a.responsavel || "";
-        document.getElementById('a-senha').value = a.senha || "";
         document.getElementById('titulo-modal').innerText = "Editar Aluno";
         document.getElementById('modalAluno').style.display = 'flex';
     }
