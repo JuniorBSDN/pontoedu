@@ -2,189 +2,357 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoEdu | Terminal Tablet</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <title>PontoEdu | Gestão de Alunos</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root {
-            --primary: #4f46e5;
-            --bg: #0f172a;
-            --card: #1e293b;
-            --success: #10b981; /* Verde esmeralda para entrada */
-            --info: #3b82f6;    /* Azul para saída */
+            --primary: #10b981;
+            --sidebar-bg: #0f172a;
+            --bg: #f8fafc;
+            --border: #e2e8f0;
             --danger: #ef4444;
+            --success: #10b981;
+            --info: #3b82f6;
         }
-        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
-        .card { background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
-        input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
-        button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 1rem; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; border: 2px solid #334155; background: #000; min-height: 250px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; color: #1e293b; min-height: 100vh; }
 
-        #feedback {
-            display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            padding: 25px 40px; border-radius: 12px; font-size: 1.4rem; font-weight: bold;
-            z-index: 9999; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            animation: slideDown 0.4s ease-out; white-space: pre-wrap; width: 85%; max-width: 400px;
+        .sidebar { background: var(--sidebar-bg); color: white; width: 260px; height: 100vh; padding: 2rem; position: fixed; display: flex; flex-direction: column; justify-content: space-between; }
+        .sidebar-menu { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem; }
+        .nav-link { display: flex; align-items: center; gap: 12px; color: #94a3b8; text-decoration: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .nav-link:hover, .nav-link.active { color: white; background: #1e293b; }
+        .nav-link.active { border-left: 4px solid var(--primary); }
+
+        .main { margin-left: 260px; padding: 3rem; width: calc(100% - 260px); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+        .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid var(--border); }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; vertical-align: middle; }
+
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn:hover { opacity: 0.9; }
+        .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 5px; }
+
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .badge-entrada { background: #ecfdf5; color: #059669; }
+        .badge-saida { background: #eff6ff; color: #2563eb; }
+
+        .modal { display:none; position:fixed; inset:0; background:rgba(15, 23, 42, 0.7); align-items:center; justify-content:center; z-index: 1000; backdrop-filter: blur(4px); }
+        .modal-content { background:white; padding:2rem; border-radius:16px; width:100%; max-width:500px; position: relative; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; background: white; color: #1e293b; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .sidebar { display: none !important; }
+            .main { margin-left: 0 !important; width: 100% !important; padding: 0 !important; }
         }
-        @keyframes slideDown { from { top: -120px; } to { top: 20px; } }
-        .info-text { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
-        #nome-unidade { color: #818cf8; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div id="feedback"></div>
+<div id="login-area" class="no-print" style="position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000;">
+    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4);">
+        <h2 style="color:white; margin-bottom:1.5rem; font-weight: 700;">Gestão de Alunos</h2>
+        <input type="text" id="l-cnpj" placeholder="CNPJ da Instituição">
+        <input type="password" id="l-senha" placeholder="Senha de Acesso (Totem)">
+        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Painel</button>
+    </div>
+</div>
 
-    <div id="login-area" class="card">
-        <h2>Ativar Totem Tablet</h2>
-        <p class="info-text">Identifique a escola usando o CNPJ e Senha configurados no painel administrativo.</p>
-        <input type="text" id="t-cnpj" placeholder="CNPJ da Escola">
-        <input type="password" id="t-senha" placeholder="Senha de Acesso (Totem)">
-        <button onclick="ativarTablet()">Ativar Dispositivo</button>
+<nav class="sidebar no-print">
+    <div>
+        <h2 style="color:#10b981; margin-bottom: 2rem;">PontoEdu</h2>
+        <div style="margin-bottom: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 1rem;">
+            <small style="color:#94a3b8; text-transform: uppercase; font-size: 0.7rem;">Escola:</small>
+            <strong id="unidade-nome" style="display:block; color: white; font-size: 1.1rem;">---</strong>
+        </div>
+        <div class="sidebar-menu">
+            <div class="nav-link active" onclick="switchTab('tab-dash', this)"><i class="fas fa-chart-pie"></i> Dashboard</div>
+            <div class="nav-link" onclick="switchTab('tab-alunos', this)"><i class="fas fa-user-graduate"></i> Alunos</div>
+            <div class="nav-link" onclick="switchTab('tab-logs', this)"><i class="fas fa-clipboard-list"></i> Histórico / Logs</div>
+        </div>
+    </div>
+    <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer;">
+        <i class="fas fa-sign-out-alt"></i> Sair
+    </button>
+</nav>
+
+<main class="main">
+    <div id="tab-dash" class="tab-content active">
+        <header style="margin-bottom:2.5rem;">
+            <h1>Visão Geral</h1>
+            <p style="color: #64748b;">Métricas de assiduidade escolar de hoje.</p>
+        </header>
+        <div class="grid-stats">
+            <div class="card">
+                <small style="color: #64748b; font-weight:600; text-transform:uppercase;">Movimentações Hoje</small>
+                <h2 id="dash-presencas-hoje" style="font-size: 2.5rem; color: var(--primary); margin-top: 0.5rem;">0</h2>
+            </div>
+            <div class="card">
+                <small style="color: #64748b; font-weight:600; text-transform:uppercase;">Alunos Cadastrados</small>
+                <h2 id="dash-total-alunos" style="font-size: 2.5rem; color: var(--info); margin-top: 0.5rem;">0</h2>
+            </div>
+        </div>
+        <div class="card">
+            <h3>Últimas Movimentações (Entradas/Saídas)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nome do Aluno</th>
+                        <th>Série / Turma</th>
+                        <th>Fluxo</th>
+                        <th>Horário</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-ponto-recente"></tbody>
+            </table>
+        </div>
     </div>
 
-    <div id="ponto-area" class="card" style="display: none;">
-        <h2 id="nome-unidade">Carregando Unidade...</h2>
-        <p style="margin-top: 5px; color: #cbd5e1;">Aponte a carteirinha QR Code para a câmera</p>
-
-        <div id="reader"></div>
-
-        <p class="info-text">O sistema registrará Saída automaticamente se o aluno já tiver entrado hoje.</p>
-        <button onclick="sair()" style="margin-top: 20px; background: #334155; padding: 8px;">Sair / Desativar Totem</button>
+    <div id="tab-alunos" class="tab-content">
+        <header style="display:flex; justify-content:space-between; margin-bottom:2.5rem;">
+            <div>
+                <h1>Corpo Discente</h1>
+                <p style="color: #64748b;">Cadastre alunos e gerencie credenciais QR Code.</p>
+            </div>
+            <button class="btn" onclick="abrirModalAluno()"><i class="fas fa-user-plus"></i> Novo Aluno</button>
+        </header>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Aluno / Matrícula</th>
+                        <th>Série / Turma</th>
+                        <th>Responsável</th>
+                        <th style="text-align: right;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-alunos"></tbody>
+            </table>
+        </div>
     </div>
 
-    <script>
-        // Configuração dinâmica de URL baseado no ambiente Vercel
-        const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-            ? "http://127.0.0.1:5000/api"
-            : window.location.origin + "/api";
+    <div id="tab-logs" class="tab-content">
+        <header style="margin-bottom:2.5rem;">
+            <h1>Histórico de Frequência</h1>
+            <p style="color: #64748b;">Arquivo completo de acessos cronológicos.</p>
+        </header>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Hora</th>
+                        <th>Matrícula</th>
+                        <th>Estudante</th>
+                        <th>Turma</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody id="lista-historico-completo"></tbody>
+            </table>
+        </div>
+    </div>
+</main>
 
-        let config = JSON.parse(localStorage.getItem("config_tablet"));
-        let html5Qrcode = null;
+<div id="modalAluno" class="modal no-print">
+    <div class="modal-content">
+        <h3 id="titulo-modal">Cadastrar Aluno</h3>
+        <input type="text" id="a-nome" placeholder="Nome Completo do Aluno">
+        <input type="text" id="a-matricula" placeholder="Nº Matrícula (Apenas números)">
+        <input type="text" id="a-turma" placeholder="Série/Turma (Ex: 9º Ano A)">
+        <input type="text" id="a-responsavel" placeholder="Nome do Responsável">
+        <button class="btn" style="width:100%; margin-top:1rem; justify-content: center;" onclick="salvarAluno()">Salvar Aluno</button>
+        <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
+    </div>
+</div>
 
-        function iniciar() {
-            if (config) {
-                document.getElementById('login-area').style.display = 'none';
-                document.getElementById('ponto-area').style.display = 'block';
-                document.getElementById('nome-unidade').innerText = config.nome;
-                startScannerDireto();
-            }
+<div id="modalQR" class="modal">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <h3 class="no-print">Cartão de Identificação Escolar</h3>
+        <p id="qr-nome-aluno" style="margin: 15px 0; font-weight: bold; color: var(--primary); font-size: 1.2rem;"></p>
+        <div id="qrcode-container" style="display: inline-block; padding: 10px; border: 1px solid #eee; background: white;"></div>
+        <div class="no-print" style="margin-top: 20px;">
+            <button class="btn" style="width:100%; justify-content: center;" onclick="window.print()">Imprimir Cartão</button>
+            <button class="btn" style="width:100%; margin-top:10px; background:none; color:#64748b; justify-content: center;" onclick="fecharModais()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://127.0.0.1:5000/api"
+        : window.location.origin + "/api";
+
+    let config = JSON.parse(localStorage.getItem("config_gestor_alunos"));
+    let alunosAtuais = [];
+
+    function iniciar() {
+        if (config) {
+            document.getElementById('login-area').style.display = 'none';
+            document.getElementById('unidade-nome').innerText = config.nome;
+            carregarAlunos();
+            carregarHistorico();
+        }
+    }
+
+    function switchTab(tabId, element) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        element.classList.add('active');
+    }
+
+    async function fazerLogin() {
+        const cnpjInput = document.getElementById('l-cnpj').value;
+        const cnpj = cnpjInput.replace(/\D/g, '');
+        const senha = document.getElementById('l-senha').value.trim();
+
+        if (!cnpj || !senha) {
+            alert("Por favor, preencha o CNPJ e a Senha.");
+            return;
         }
 
-        async function ativarTablet() {
-            const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
-            const senha = document.getElementById('t-senha').value.trim();
-
-            if(!cnpj || !senha) {
-                alert("Preencha todos os campos.");
-                return;
-            }
-
-            try {
-                const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ cnpj, senha })
-                });
-
-                if (res.ok) {
-                    const dados = await res.json();
-                    config = { id: dados.id, nome: dados.nome };
-                    localStorage.setItem("config_tablet", JSON.stringify(config));
-                    location.reload();
-                } else {
-                    mostrarFeedback("Acesso negado! Credenciais inválidas.", "erro");
-                }
-            } catch (e) {
-                mostrarFeedback("Erro ao se conectar com o servidor.", "erro");
-            }
-        }
-
-        function startScannerDireto() {
-            html5Qrcode = new Html5Qrcode("reader");
-            const configScanner = { fps: 15, qrbox: { width: 250, height: 250 } };
-
-            // Inicializa diretamente puxando a câmera traseira (ideal para totens fixos)
-            html5Qrcode.start(
-                { facingMode: "environment" },
-                configScanner,
-                onScanSuccess
-            ).catch(err => {
-                // Se falhar (ex: tablet sem câmera traseira definida), tenta a frontal
-                html5Qrcode.start({ facingMode: "user" }, configScanner, onScanSuccess)
-                    .catch(e => console.error("Nenhuma câmera encontrada.", e));
+        try {
+            const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ cnpj, senha })
             });
-        }
 
-        async function onScanSuccess(conteudoLido) {
-            if (window.processandoPonto) return;
-            window.processandoPonto = true;
-
-            const matriculaLimpa = conteudoLido.replace(/\D/g, "");
-
-            try {
-                const res = await fetch(`${API_URL}/ponto/registrar`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        id_cliente: config.id,
-                        matricula: matriculaLimpa
-                    })
-                });
-
-                const data = await res.json();
-
-                if (res.ok) {
-                    // O backend retorna data.tipo como "ENTRADA" ou "SAÍDA"
-                    let acao = data.tipo === "ENTRADA" ? "ENTRADA CONFIRMADA!" : "SAÍDA CONFIRMADA!";
-                    let msg = `${acao}\n\nAluno: ${data.aluno}\nTurma: ${data.turma}\nHora: ${data.hora}`;
-
-                    mostrarFeedback(msg, data.tipo.toLowerCase());
-                } else {
-                    mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
-                }
-            } catch (e) {
-                mostrarFeedback("FALHA DE CONEXÃO", "erro");
-            } finally {
-                // Aguarda 4 segundos antes de liberar o próximo aluno (evita loops de leitura imediata)
-                setTimeout(() => { window.processandoPonto = false; }, 4000);
+            if (res.ok) {
+                const dados = await res.json();
+                localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
+                location.reload();
+            } else { 
+                alert("Acesso negado! Verifique suas credenciais."); 
             }
+        } catch (e) {
+            alert("Erro de comunicação com o servidor.");
         }
+    }
 
-        function mostrarFeedback(mensagem, tipo) {
-            const fb = document.getElementById('feedback');
-            fb.innerText = mensagem;
-            fb.style.display = 'block';
+    async function carregarAlunos() {
+        const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
+        alunosAtuais = await res.json();
+        document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
 
-            // Customização dinâmica das cores de feedback com base no tipo retornado pelo index.py
-            if (tipo === "entrada") {
-                fb.style.background = "var(--success)"; // Verde Esmeralda para Entrada
-            } else if (tipo === "saída" || tipo === "saida") {
-                fb.style.background = "var(--info)";    // Azul para Saída
-            } else {
-                fb.style.background = "var(--danger)";  // Vermelho para erros de matrícula/escola
-            }
+        document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
+            <tr>
+                <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
+                <td>${a.turma || 'Não definida'}</td>
+                <td>${a.responsavel || '---'}</td>
+                <td style="text-align: right;">
+                    <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
+                    <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
+                    <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    }
 
-            // Oculta a mensagem um pouco antes do leitor reativar
-            setTimeout(() => { fb.style.display = 'none'; }, 3500);
+    async function carregarHistorico() {
+        const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
+        const logsPresencas = await res.json();
+
+        const hoje = new Date().toISOString().split('T')[0];
+        const presencasHoje = logsPresencas.filter(p => p.data === hoje);
+        document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
+
+        // Renderiza as 5 batidas mais recentes no Dashboard discriminando Entrada/Saída
+        document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
+            const isEntrada = p.tipo === "ENTRADA";
+            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            return `
+                <tr>
+                    <td><strong>${p.aluno}</strong></td>
+                    <td>${p.turma}</td>
+                    <td><span class="badge ${badgeClass}">${p.tipo}</span></td>
+                    <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
+                </tr>
+            `;
+        }).join('');
+
+        // Histórico Geral
+        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
+            const isEntrada = p.tipo === "ENTRADA";
+            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            return `
+                <tr>
+                    <td>${p.data}</td>
+                    <td>${p.hora}</td>
+                    <td><code>${p.matricula}</code></td>
+                    <td><strong>${p.aluno}</strong></td>
+                    <td>${p.turma}</td>
+                    <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    async function salvarAluno() {
+        const isEdit = document.getElementById('a-matricula').disabled;
+        const matricula = document.getElementById('a-matricula').value.replace(/\D/g, '');
+        const dados = {
+            nome: document.getElementById('a-nome').value,
+            matricula: matricula,
+            turma: document.getElementById('a-turma').value,
+            responsavel: document.getElementById('a-responsavel').value,
+            cliente_id: config.id
+        };
+
+        const res = await fetch(isEdit ? `${API_URL}/alunos/${matricula}` : `${API_URL}/alunos`, {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dados)
+        });
+
+        if(res.ok) { fecharModais(); carregarAlunos(); carregarHistorico(); }
+    }
+
+    function prepararEdicao(mat) {
+        const a = alunosAtuais.find(x => x.matricula === mat);
+        document.getElementById('a-nome').value = a.nome;
+        document.getElementById('a-matricula').value = a.matricula;
+        document.getElementById('a-matricula').disabled = true;
+        document.getElementById('a-turma').value = a.turma || "";
+        document.getElementById('a-responsavel').value = a.responsavel || "";
+        document.getElementById('titulo-modal').innerText = "Editar Aluno";
+        document.getElementById('modalAluno').style.display = 'flex';
+    }
+
+    function abrirQR(mat, nome) {
+        document.getElementById('qr-nome-aluno').innerText = nome;
+        const container = document.getElementById('qrcode-container');
+        container.innerHTML = "";
+        new QRCode(container, { text: mat, width: 220, height: 220 });
+        document.getElementById('modalQR').style.display = 'flex';
+    }
+
+    async function removerAluno(mat) {
+        if(confirm("Excluir este aluno?")) {
+            await fetch(`${API_URL}/alunos/${mat}`, { method: 'DELETE' });
+            carregarAlunos();
         }
+    }
 
-        function sair() {
-            if(confirm("Deseja desativar este totem?")) {
-                if (html5Qrcode && html5Qrcode.isScanning) {
-                    html5Qrcode.stop().then(() => {
-                        localStorage.clear();
-                        location.reload();
-                    });
-                } else {
-                    localStorage.clear();
-                    location.reload();
-                }
-            }
-        }
+    function abrirModalAluno() {
+        document.getElementById('a-matricula').disabled = false;
+        document.querySelectorAll('#modalAluno input').forEach(i => i.value = "");
+        document.getElementById('titulo-modal').innerText = "Cadastrar Aluno";
+        document.getElementById('modalAluno').style.display = 'flex';
+    }
 
-        iniciar();
-    </script>
+    function fecharModais() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+    function sair() { localStorage.clear(); location.reload(); }
+    iniciar();
+</script>
 </body>
 </html>
