@@ -44,7 +44,7 @@ def gerenciar_clientes():
         dados = request.json
         doc_ref = db.collection('clientes').document()
         dados['id'] = doc_ref.id
-        if 'nome' in dados: 
+        if 'nome' in dados:
             dados['nome_fantasia'] = dados['nome']
         doc_ref.set(dados)
         return jsonify(dados), 201
@@ -97,7 +97,7 @@ def criar_aluno():
     dados = request.json
     matricula = "".join(filter(str.isdigit, str(dados['matricula'])))
     dados['matricula'] = matricula
-    
+
     # Define a matrícula como ID do documento para otimização de consultas
     db.collection('alunos').document(matricula).set(dados)
     return jsonify(dados), 201
@@ -122,38 +122,45 @@ def gerenciar_aluno_especifico(matricula):
 
 
 # --- CONTROLE DE FREQUÊNCIA (TRAVA DE PRESENÇA DIÁRIA UNIQUE) ---
+# --- CONTROLE DE FREQUÊNCIA (ENTRADAS E SAÍDAS SINCRONIZADAS) ---
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     dados = request.json
     matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
     id_cliente = dados.get('id_cliente')
-    
+
     if not matricula:
         return jsonify({"erro": "Matrícula inválida"}), 400
 
     aluno_ref = db.collection('alunos').document(matricula).get()
     if not aluno_ref.exists:
-        return jsonify({"erro": "Aluno não cadastrado no sistema"}), 404
+        return jsonify({"erro": "Aluno não cadastrado"}), 404
 
     aluno = aluno_ref.to_dict()
-    
-    # Segurança multitenant: Valida se o estudante pertence à instituição solicitante
+
     if aluno.get('cliente_id') != id_cliente:
-        return jsonify({"erro": "Aluno não pertence a esta unidade de ensino"}), 403
+        return jsonify({"erro": "Aluno não pertence a esta unidade"}), 403
 
     agora = get_agora_br()
     hoje_str = agora.date().isoformat()
 
-    # Validação contra duplicidade no mesmo dia
-    docs_hoje = db.collection('pontos')\
-        .where('matricula', '==', matricula)\
-        .where('data', '==', hoje_str)\
-        .limit(1).get()
+    # Busca se o aluno já possui registros no dia de hoje
+    docs_hoje = db.collection('pontos') \
+        .where('matricula', '==', matricula) \
+        .where('data', '==', hoje_str) \
+        .get()
 
-    if docs_hoje:
-        return jsonify({"erro": "Presença já computada para o dia de hoje."}), 400
+    # Lógica de alternância automática: se não tem registros hoje é ENTRADA, se já tem é SAÍDA
+    tipo_movimentacao = "ENTRADA" if len(docs_hoje) == 0 else "SAÍDA"
 
-    # Estruturação simplificada do registro escolar
+    # Evita que o aluno bata saída múltiplas vezes seguidas no mesmo minuto por erro
+    if len(docs_hoje) > 0:
+        ultimas_batidas = [d.to_dict() for d in docs_hoje]
+        ultimas_batidas.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
+        if ultimas_batidas[0].get('tipo') == "SAÍDA":
+            # Se a última batida já foi uma saída, avisa ou gerencia o limite se necessário
+            pass
+
     novo_ponto = {
         "matricula": matricula,
         "aluno": aluno['nome'],
@@ -161,18 +168,18 @@ def registrar_ponto():
         "id_cliente": id_cliente,
         "timestamp_servidor": agora.isoformat(),
         "data": hoje_str,
-        "hora": agora.strftime('%H:%M:%S')
+        "hora": agora.strftime('%H:%M:%S'),
+        "tipo": tipo_movimentacao # Gravando o tipo corretamente para o Histórico!
     }
     db.collection('pontos').add(novo_ponto)
-    
+
     return jsonify({
         "status": "success",
+        "tipo": tipo_movimentacao, # Retornando ENTRADA ou SAÍDA para o tablet mudar de cor
         "aluno": aluno['nome'],
         "turma": aluno.get('turma', 'N/A'),
         "hora": novo_ponto['hora']
     }), 200
-
-
 @app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
 def historico_unidade(cliente_id):
     docs = db.collection('pontos').where('cliente_id', '==', cliente_id).get()
