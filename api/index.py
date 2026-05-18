@@ -25,20 +25,7 @@ def get_agora_br():
     return datetime.now(timezone(timedelta(hours=-3)))
 
 
-# --- LOGIN ADMINISTRATIVO (DONO) ---
-@app.route('/api/admin/login', methods=['POST'])
-def login_admin():
-    dados = request.json
-    senha_digitada = str(dados.get('senha', '')).strip()
-    # Puxa ADMIN_PASSWORD da Vercel. Se não existir, usa 'admin123'
-    senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
-
-    if senha_digitada == senha_mestra:
-        return jsonify({"auth": True}), 200
-    return jsonify({"erro": "Senha incorreta"}), 401
-
-
-# --- GERENCIAMENTO DE CLIENTES ---
+# --- GERENCIAMENTO DE CLIENTES / ESCOLAS ---
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
     if request.method == 'POST':
@@ -69,7 +56,7 @@ def detalhe_cliente(id):
     return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
 
 
-# --- LOGIN DO TABLET ---
+# --- LOGIN DO TABLET / PAINEL GESTOR (POR CNPJ) ---
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_unidade():
     try:
@@ -91,60 +78,94 @@ def login_unidade():
         return jsonify({"erro": str(e)}), 500
 
 
-# --- REGISTO DE PONTO ---
-@app.route('/api/ponto/registrar', methods=['POST'])
-def registrar_ponto():
+# --- GESTÃO DE ALUNOS (CADASTRO E LISTAGEM) ---
+@app.route('/api/alunos', methods=['POST'])
+def criar_aluno():
     dados = request.json
-    cpf = "".join(filter(str.isdigit, str(dados.get('id_funcionario', ''))))
-    f_ref = db.collection('funcionarios').document(cpf).get()
+    matricula = "".join(filter(str.isdigit, str(dados['matricula'])))
+    dados['matricula'] = matricula
 
-    if not f_ref.exists:
-        return jsonify({"erro": "CPF não encontrado"}), 404
-
-    func = f_ref.to_dict()
-    agora = get_agora_br()
-
-    # Ordenação manual no Python para evitar necessidade de índices compostos no Firebase
-    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
-    pontos = [p.to_dict() for p in docs]
-    pontos.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
-
-    tipo, horas = "ENTRADA", 0
-    if pontos and pontos[0]['tipo'] == "ENTRADA":
-        tipo = "SAÍDA"
-        inicio = datetime.fromisoformat(pontos[0]['timestamp_servidor'])
-        if inicio.tzinfo is None: inicio = inicio.replace(tzinfo=timezone(timedelta(hours=-3)))
-        horas = round((agora - inicio).total_seconds() / 3600, 2)
-
-    novo_ponto = {
-        "id_funcionario": cpf, "funcionario": func['nome'], "id_cliente": dados.get('id_cliente'),
-        "tipo": tipo, "timestamp_servidor": agora.isoformat(), "horas_trabalhadas": horas
-    }
-    db.collection('pontos').add(novo_ponto)
-    return jsonify({"tipo": tipo, "funcionario": func['nome'], "horas": horas})
-
-
-# --- FUNCIONÁRIOS ---
-@app.route('/api/funcionarios', methods=['POST'])
-def criar_func():
-    dados = request.json
-    cpf = "".join(filter(str.isdigit, str(dados['cpf'])))
-    dados['cpf'] = cpf
-    db.collection('funcionarios').document(cpf).set(dados)
+    # Salva usando a matrícula como ID do documento
+    db.collection('alunos').document(matricula).set(dados)
     return jsonify(dados), 201
 
 
-@app.route('/api/funcionarios/<cliente_id>', methods=['GET'])
-def listar_funcs(cliente_id):
-    docs = db.collection('funcionarios').where('cliente_id', '==', cliente_id).stream()
+@app.route('/api/alunos/unidade/<cliente_id>', methods=['GET'])
+def listar_alunos(cliente_id):
+    docs = db.collection('alunos').where('cliente_id', '==', cliente_id).stream()
     return jsonify([doc.to_dict() for doc in docs])
 
 
-@app.route('/api/ponto/funcionario/<cpf>', methods=['GET'])
-def relatorio(cpf):
-    docs = db.collection('pontos').where('id_funcionario', '==', cpf).get()
+@app.route('/api/alunos/<matricula>', methods=['PUT', 'DELETE'])
+def gerenciar_aluno_especifico(matricula):
+    doc_ref = db.collection('alunos').document(matricula)
+    if request.method == 'PUT':
+        dados = request.json
+        doc_ref.update(dados)
+        return jsonify({"status": "atualizado"})
+    if request.method == 'DELETE':
+        doc_ref.delete()
+        return jsonify({"status": "excluido"})
+
+
+# --- REGISTRO DE PRESENÇA ESCOLAR (MÁXIMO 1 POR DIA) ---
+@app.route('/api/ponto/registrar', methods=['POST'])
+def registrar_ponto():
+    dados = request.json
+    matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
+    id_cliente = dados.get('id_cliente')
+
+    if not matricula:
+        return jsonify({"erro": "Matrícula inválida"}), 400
+
+    aluno_ref = db.collection('alunos').document(matricula).get()
+    if not aluno_ref.exists:
+        return jsonify({"erro": "Matrícula não cadastrada"}), 404
+
+    aluno = aluno_ref.to_dict()
+
+    # Valida se o aluno pertence à escola que capturou o ponto
+    if aluno.get('cliente_id') != id_cliente:
+        return jsonify({"erro": "Aluno não pertence a esta instituição"}), 403
+
+    agora = get_agora_br()
+    hoje_str = agora.date().isoformat()
+
+    # Bloqueia registros duplicados no mesmo dia
+    docs_hoje = db.collection('pontos') \
+        .where('matricula', '==', matricula) \
+        .where('data', '==', hoje_str) \
+        .limit(1).get()
+
+    if docs_hoje:
+        return jsonify({"erro": "Presença já registrada hoje!"}), 400
+
+    # Gravação do log de presença escolar
+    novo_ponto = {
+        "matricula": matricula,
+        "aluno": aluno['nome'],
+        "turma": aluno.get('turma', 'Não definida'),
+        "id_cliente": id_cliente,
+        "timestamp_servidor": agora.isoformat(),
+        "data": hoje_str,
+        "hora": agora.strftime('%H:%M:%S')
+    }
+    db.collection('pontos').add(novo_ponto)
+
+    return jsonify({
+        "status": "success",
+        "aluno": aluno['nome'],
+        "turma": aluno.get('turma', 'N/A'),
+        "hora": novo_ponto['hora']
+    }), 200
+
+
+# --- HISTÓRICO DE PRESENÇAS FILTRADO POR ESCOLA ---
+@app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
+def historico_unidade(cliente_id):
+    docs = db.collection('pontos').where('id_cliente', '==', cliente_id).get()
     lista = [d.to_dict() for d in docs]
-    lista.sort(key=lambda x: x['timestamp_servidor'])
+    lista.sort(key=lambda x: x['timestamp_servidor'], reverse=True)
     return jsonify(lista)
 
 
