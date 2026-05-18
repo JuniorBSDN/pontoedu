@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PontoEdu | Administrativo</title>
+    <title>PontoEdu | Painel Master SaaS</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -16,50 +16,76 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); }
         .wrapper { display: flex; flex-direction: column; min-height: 100vh; }
-        .sidebar { background: var(--sidebar-bg); color: white; padding: 1.5rem; width: 100%; }
-        .main-content { flex: 1; padding: 1.5rem; }
-        @media (min-width: 1024px) {
-            .wrapper { flex-direction: row; }
-            .sidebar { width: 260px; height: 100vh; position: fixed; }
-            .main-content { margin-left: 260px; padding: 3rem; }
-        }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem; }
-        .card-tabela { background: white; border-radius: 12px; border: 1px solid var(--border); overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; min-width: 900px; }
-        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
-        td { padding: 1.25rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-        .btn-icon { background: none; border: 1px solid var(--border); padding: 8px; border-radius: 6px; cursor: pointer; margin-right: 4px; }
-        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 2000; align-items: center; justify-content: center; padding: 1rem; }
-        .modal-content { background: white; width: 100%; max-width: 650px; padding: 2rem; border-radius: 16px; max-height: 90vh; overflow-y: auto; }
-        .form-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
-        @media (min-width: 600px) { .form-grid { grid-template-columns: 1fr 1fr; } .full { grid-column: span 2; } }
-        label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: #475569; }
-        input { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; }
-        .btn-save { background: var(--primary); color: white; border: none; padding: 1rem; border-radius: 8px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 1.5rem; }
+        .sidebar { background: var(--sidebar-bg); color: white; width: 260px; padding: 2rem; display: flex; flex-direction: column; justify-content: space-between; height: 100vh; position: fixed; }
+        .main { margin-left: 260px; padding: 3rem; flex: 1; }
+        .card { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 2rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: white; padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border); }
+        .stat-card h3 { font-size: 2rem; margin-top: 0.5rem; color: var(--primary); }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th { background: #f1f5f9; padding: 1rem; text-align: left; font-size: 0.75rem; color: #64748b; text-transform: uppercase; border-bottom: 2px solid var(--border); }
+        td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .btn { background: var(--primary); color: white; border: none; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+        .btn-danger { background: var(--danger); }
+        .btn-warning { background: var(--warning); }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal-content { background: white; padding: 2rem; border-radius: 16px; width: 100%; max-width: 500px; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 0.85rem; }
+        input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; }
+        .actions-cell { display: flex; gap: 8px; justify-content: flex-end; }
+        .btn-icon { background: none; border: none; cursor: pointer; font-size: 1.1rem; padding: 4px; transition: 0.2s; }
+        .btn-icon:hover { transform: scale(1.1); }
     </style>
 </head>
 <body>
 
+<div id="login-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--sidebar-bg); z-index:9999; display:flex; align-items:center; justify-content:center;">
+    <div style="background:#1e293b; padding:3rem; border-radius:16px; width:100%; max-width:400px; text-align:center; box-shadow:0 20px 25px -5px rgba(0,0,0,0.3);">
+        <h2 style="color:white; margin-bottom:1.5rem; font-weight:700; letter-spacing:-0.5px;">PontoEdu Master</h2>
+        <input type="password" id="admin-pass" placeholder="Senha Mestra do Sistema" style="margin-bottom:1.5rem; background:#0f172a; border-color:#334155; color:white; padding:12px;">
+        <button class="btn" style="width:100%; justify-content:center; padding:12px;" onclick="tryLogin()">Autenticar Console</button>
+    </div>
+</div>
+
 <div class="wrapper">
-    <nav class="sidebar"><h2 style="color: #818cf8;">PontoEdu<hr></h2></nav>
-    <main class="main-content">
-        <header>
-            <div><h1>Unidades e Clientes</h1><p style="color: #64748b;">Administre as filiais e senhas de acesso.</p></div>
-            <button onclick="abrirModal()" style="background:var(--primary); color:white; border:none; padding:12px 24px; border-radius:8px; cursor:pointer; font-weight:600;">
-                <i class="fas fa-plus"></i> Novo Colaborador
-            </button>
-        </header>
-        <div class="card-tabela">
-            <table>
+    <nav class="sidebar">
+        <div>
+            <h2 style="color:#6366f1; font-weight:700; margin-bottom:2rem;"><i class="fas fa-graduation-cap"></i> PontoEdu</h2>
+            <p style="color:#64748b; font-size:0.8rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:1rem;">Navegação</p>
+            <a href="#" class="btn" style="background:rgba(99,102,241,0.1); color:#a5b4fc; width:100%; justify-content:flex-start;"><i class="fas fa-school"></i> Unidades / Escolas</a>
+        </div>
+        <button onclick="logout()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer;"><i class="fas fa-sign-out-alt"></i> Sair</button>
+    </nav>
+
+    <main class="main">
+        <div style="display:flex; justify-content:between; align-items:center; margin-bottom:2.5rem;">
+            <div>
+                <h1 style="font-weight:700; letter-spacing:-1px;">Unidades de Ensino Contratantes</h1>
+                <p style="color:#64748b; margin-top:4px;">Gerenciamento global de escolas parceiras na plataforma.</p>
+            </div>
+            <button class="btn" onclick="abrirModalCadastro()" style="margin-left: auto;"><i class="fas fa-plus"></i> Nova Escola</button>
+        </div>
+
+        <div class="grid-3">
+            <div class="stat-card">
+                <small style="color:#64748b; font-weight:600; text-transform:uppercase;">Escolas Ativas</small>
+                <h3 id="total-clientes">0</h3>
+            </div>
+        </div>
+
+        <div class="card">
+            <table id="tabela-clientes">
                 <thead>
                     <tr>
-                        <th>Empresa / Endereço</th>
-                        <th>CNPJ / Contato</th>
-                        <th>Senha Tablet</th>
-                        <th>Ações</th>
+                        <th>Nome da Instituição</th>
+                        <th>CNPJ</th>
+                        <th>Responsável / Contato</th>
+                        <th>Localização</th>
+                        <th style="text-align:right;">Ações de Integração</th>
                     </tr>
                 </thead>
-                <tbody id="lista-clientes"></tbody>
+                <tbody></tbody>
             </table>
         </div>
     </main>
@@ -67,104 +93,81 @@
 
 <div id="modalEmpresa" class="modal">
     <div class="modal-content">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-            <h2 id="modal-titulo">Configurar Unidade</h2>
-            <button onclick="closeModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer;">&times;</button>
+        <h3 id="modal-titulo" style="margin-bottom:1.5rem; font-weight:700;">Cadastrar Nova Escola</h3>
+        <input type="hidden" id="edit-id">
+        <div class="form-group"><label>Nome Fantasia / Unidade</label><input type="text" id="nome" required></div>
+        <div class="form-group"><label>CNPJ</label><input type="text" id="cnpj" required></div>
+        <div class="form-group"><label>Gestor Responsável</label><input type="text" id="responsavel"></div>
+        <div class="form-group"><label>E-mail Corporativo</label><input type="email" id="email"></div>
+        <div class="form-group"><label>Telefone</label><input type="text" id="telefone"></div>
+        <div class="form-group"><label>Senha de Acesso do Totem</label><input type="password" id="senha_acesso" required></div>
+        <div class="form-group"><label>Endereço</label><input type="text" id="endereco"></div>
+
+        <div style="display:flex; gap:10px; margin-top:2rem; justify-content:flex-end;">
+            <button class="btn style="background:#f1f5f9; color:#64748b;" onclick="fecharModal()">Cancelar</button>
+            <button class="btn" onclick="salvarEmpresa()">Salvar Registro</button>
         </div>
-        <form id="form-empresa">
-            <input type="hidden" id="edit-id">
-            <div class="form-grid">
-                <div class="form-group full"><label>Razão Social / Fantasia</label><input type="text" id="nome" required></div>
-                <div class="form-group"><label>CNPJ</label><input type="text" id="cnpj" required></div>
-                <div class="form-group"><label>Responsável</label><input type="text" id="responsavel" required></div>
-                <div class="form-group"><label>E-mail</label><input type="email" id="email" required></div>
-                <div class="form-group"><label>Telefone</label><input type="text" id="telefone" required></div>
-                <div class="form-group full"><label style="color:var(--primary)">Senha de Acesso ao Tablet</label><input type="text" id="senha_acesso" required></div>
-                <div class="form-group full"><label>Endereço Completo</label><input type="text" id="endereco" required></div>
-            </div>
-            <button type="submit" class="btn-save">Salvar Registro</button>
-        </form>
     </div>
 </div>
 
 <div id="modalQR" class="modal">
-    <div class="modal-content" style="text-align:center">
-        <h2>Ativar Tablet</h2>
-        <div id="qrcode-container" style="display:inline-block; padding:20px; background:white; margin:20px 0;"></div>
-        <button onclick="document.getElementById('modalQR').style.display='none'" class="btn-save">Fechar</button>
+    <div class="modal-content" style="max-width:360px; text-align:center;">
+        <h3 style="margin-bottom:1rem;">Token de Ativação do Totem</h3>
+        <div id="qrcode-container" style="display:inline-block; padding:1rem; border:1px solid var(--border); background:white; border-radius:8px; margin-bottom:1rem;"></div>
+        <p style="font-size:0.85rem; color:#64748b; margin-bottom:1.5rem;">Aproxime este QR Code da câmera do tablet para vincular a estação de ponto automaticamente.</p>
+        <button class="btn" style="width:100%; justify-content:center;" onclick="fecharModal()">Fechar Janela</button>
     </div>
 </div>
 
 <script>
-    const API_URL = "https://pontoback-tau.vercel.app/api";
+    const API_URL = window.location.origin + "/api";
     let clientesCache = [];
 
-    // CAMADA DE SEGURANÇA DO DONO
-    async function validarAcessoDono() {
-        const senha = prompt("Senha Administrativa:");
-        if (!senha) return window.location.reload(); // Evita entrar vazio
-
-        try {
-            const res = await fetch(`${API_URL}/admin/login`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ senha })
-            });
-            if (!res.ok) {
-                alert("Acesso Negado!");
-                window.location.reload();
-            } else {
-                document.body.style.display = "block";
-                carregarEmpresas();
-            }
-        } catch (e) {
-            alert("Erro de conexão com o servidor.");
-        }
-    }
-    document.body.style.display = "none";
-    validarAcessoDono();
-
-    // FUNÇÕES DE MODAL (ESSENCIAIS PARA FECHAR A JANELA)
-    function abrirModal() {
-        document.getElementById('form-empresa').reset();
-        document.getElementById('edit-id').value = ""; // MUITO IMPORTANTE: limpa o ID para novo cadastro
-        document.getElementById('modal-titulo').innerText = "Novo Cliente";
-        document.getElementById('modalEmpresa').style.display = 'flex';
+    if(localStorage.getItem('master_auth') === 'true') {
+        document.getElementById('login-screen').style.display = 'none';
+        carregarClientes();
     }
 
-    function closeModal() {
-        document.getElementById('modalEmpresa').style.display = 'none';
-        document.getElementById('form-empresa').reset();
+    async function tryLogin() {
+        const senha = document.getElementById('admin-pass').value;
+        const res = await fetch(`${API_URL}/admin/login`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ senha })
+        });
+        if(res.ok) {
+            localStorage.setItem('master_auth', 'true');
+            document.getElementById('login-screen').style.display = 'none';
+            carregarClientes();
+        } else { alert("Senha incorreta!"); }
     }
 
-    async function carregarEmpresas() {
-        try {
-            const res = await fetch(`${API_URL}/clientes`);
-            clientesCache = await res.json();
-            const tabela = document.getElementById('lista-clientes');
-            tabela.innerHTML = clientesCache.map(emp => `
-                <tr>
-                    <td><strong>${emp.nome_fantasia || emp.nome || 'N/A'}</strong><br><small>${emp.endereco || ''}</small></td>
-                    <td><code>${emp.cnpj}</code></td>
-                    <td><span style="background:#e0e7ff; padding:5px; border-radius:5px;">${emp.senha_acesso || '---'}</span></td>
-                    <td>
-                        <button class="btn-icon" onclick="gerarQRAtivacao('${emp.id}')"><i class="fas fa-qrcode"></i></button>
-                        <button class="btn-icon" onclick="editarEmpresa('${emp.id}')"><i class="fas fa-edit"></i></button>
-                        <button class="btn-icon" onclick="excluirEmpresa('${emp.id}')"><i class="fas fa-trash"></i></button>
-                    </td>
-                </tr>
-            `).join('');
-        } catch (e) { console.error(e); }
+    async function carregarClientes() {
+        const res = await fetch(`${API_URL}/clientes`);
+        clientesCache = await res.json();
+        document.getElementById('total-clientes').innerText = clientesCache.length;
+
+        const tbody = document.querySelector('#tabela-clientes tbody');
+        tbody.innerHTML = clientesCache.map(c => `
+            <tr>
+                <td><strong>${c.nome_fantasia || c.nome}</strong></td>
+                <td><code style="font-family:monospace;">${c.cnpj}</code></td>
+                <td>${c.responsavel || '---'}<br><small style="color:#64748b;">${c.email || ''}</small></td>
+                <td><small>${c.endereco || '---'}</small></td>
+                <td class="actions-cell">
+                    <button class="btn-icon" style="color:var(--primary);" onclick="prepararEdicao('${c.id}')" title="Editar"><i class="fas fa-edit"></i></button>
+                    <button class="btn-icon" style="color:#000;" onclick="gerarQRAtivacao('${c.id}')" title="Gerar QR Token"><i class="fas fa-qrcode"></i></button>
+                    <button class="btn-icon" style="color:var(--danger);" onclick="excluirEmpresa('${c.id}')" title="Excluir"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `).join('');
     }
 
-    document.getElementById('form-empresa').onsubmit = async (e) => {
-        e.preventDefault();
+    async function salvarEmpresa() {
         const id = document.getElementById('edit-id').value;
-        const nomeValor = document.getElementById('nome').value;
-
         const dados = {
-            nome: nomeValor,
-            nome_fantasia: nomeValor,
+            nome: document.getElementById('nome').value,
+            nome_fantasia: document.getElementById('nome').value,
             cnpj: document.getElementById('cnpj').value,
             responsavel: document.getElementById('responsavel').value,
             email: document.getElementById('email').value,
@@ -173,58 +176,57 @@
             endereco: document.getElementById('endereco').value
         };
 
+        const metodo = id ? 'PUT' : 'POST';
         const url = id ? `${API_URL}/clientes/${id}` : `${API_URL}/clientes`;
-        const method = id ? 'PUT' : 'POST';
 
-        try {
-            const res = await fetch(url, {
-                method: method,
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(dados)
-            });
+        const res = await fetch(url, {
+            method: metodo,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(dados)
+        });
 
-            if(res.ok) {
-                closeModal(); // AGORA VAI FECHAR PORQUE A FUNÇÃO EXISTE ACIMA
-                carregarEmpresas();
-            } else {
-                alert("Erro ao salvar no servidor!");
-            }
-        } catch (err) {
-            alert("Erro de conexão!");
-        }
-    };
+        if(res.ok) { fecharModal(); carregarClientes(); }
+    }
 
-    function editarEmpresa(id) {
+    function prepararEdicao(id) {
         const emp = clientesCache.find(c => c.id === id);
         if(!emp) return;
-
-        document.getElementById('modal-titulo').innerText = "Editar Unidade";
+        document.getElementById('modal-titulo').innerText = "Editar Unidade Escola";
         document.getElementById('edit-id').value = emp.id;
         document.getElementById('nome').value = emp.nome_fantasia || emp.nome;
         document.getElementById('cnpj').value = emp.cnpj;
-        document.getElementById('responsavel').value = emp.responsavel;
-        document.getElementById('email').value = emp.email;
-        document.getElementById('telefone').value = emp.telefone;
+        document.getElementById('responsavel').value = emp.responsavel || "";
+        document.getElementById('email').value = emp.email || "";
+        document.getElementById('telefone').value = emp.telefone || "";
         document.getElementById('senha_acesso').value = emp.senha_acesso || "";
-        document.getElementById('endereco').value = emp.endereco;
+        document.getElementById('endereco').value = emp.endereco || "";
         document.getElementById('modalEmpresa').style.display = 'flex';
     }
 
-    function gerarQRAtivacao(id) {
+    function generarQRAtivacao(id) {
         const emp = clientesCache.find(c => c.id === id);
         const qrContent = btoa(JSON.stringify({ id: emp.id, nome: emp.nome_fantasia || emp.nome, api: API_URL }));
         const container = document.getElementById('qrcode-container');
         container.innerHTML = "";
-        new QRCode(container, { text: qrContent, width: 256, height: 256 });
+        new QRCode(container, { text: qrContent, width: 200, height: 200 });
         document.getElementById('modalQR').style.display = 'flex';
     }
 
     async function excluirEmpresa(id) {
-        if(confirm("Deseja realmente excluir esta unidade?")) {
+        if(confirm("Deseja realmente remover esta unidade escolar do SaaS?")) {
             await fetch(`${API_URL}/clientes/${id}`, { method: 'DELETE' });
-            carregarEmpresas();
+            carregarClientes();
         }
     }
+
+    function abrirModalCadastro() {
+        document.getElementById('edit-id').value = "";
+        document.querySelectorAll('#modalEmpresa input').forEach(i => i.value = "");
+        document.getElementById('modal-titulo').innerText = "Cadastrar Nova Escola";
+        document.getElementById('modalEmpresa').style.display = 'flex';
+    }
+    function fecharModal() { document.querySelectorAll('.modal').forEach(m => m.style.display = 'none'); }
+    function logout() { localStorage.clear(); location.reload(); }
 </script>
 </body>
 </html>
