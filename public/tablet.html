@@ -38,7 +38,7 @@
 
     <div id="login-area" class="card">
         <h2>Ativar Totem Tablet</h2>
-        <p class="info-text">Identifique a escola usando o CNPJ e Senha configurados no painel administrativo.</p>
+        <p class="info-text">Identifique a escola usando o CNPJ e Senha configurados no painel administrative.</p>
         <input type="text" id="t-cnpj" placeholder="CNPJ da Escola">
         <input type="password" id="t-senha" placeholder="Senha de Acesso (Totem)">
         <button onclick="ativarTablet()">Ativar Dispositivo</button>
@@ -72,7 +72,7 @@
             }
         }
 
-        async function ativarTablet() {
+        async function activarTablet() {
             const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value.trim();
 
@@ -105,13 +105,11 @@
             html5Qrcode = new Html5Qrcode("reader");
             const configScanner = { fps: 15, qrbox: { width: 250, height: 250 } };
 
-            // Inicializa diretamente puxando a câmera traseira (ideal para totens fixos)
             html5Qrcode.start(
                 { facingMode: "environment" },
                 configScanner,
                 onScanSuccess
             ).catch(err => {
-                // Se falhar (ex: tablet sem câmera traseira definida), tenta a frontal
                 html5Qrcode.start({ facingMode: "user" }, configScanner, onScanSuccess)
                     .catch(e => console.error("Nenhuma câmera encontrada.", e));
             });
@@ -124,25 +122,23 @@
             const matriculaLimpa = conteudoLido.replace(/\D/g, "");
 
             try {
-                const res = await fetch(`${API_URL}/ponto/registrar`, {
+                // CORREÇÃO AQUI: Alterado de /ponto/registrar para /ponto para bater com o index.py
+                const res = await fetch(`${API_URL}/ponto`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        id_cliente: config.id,
                         matricula: matriculaLimpa
                     })
                 });
 
                 const data = await res.json();
 
-                if (res.ok) {
-                    // O backend retorna data.tipo como "ENTRADA" ou "SAÍDA"
+                if (res.ok && data.status === "sucesso") {
                     let acao = data.tipo === "ENTRADA" ? "ENTRADA CONFIRMADA!" : "SAÍDA CONFIRMADA!";
-                    let msg = `${acao}\n\nAluno: ${data.aluno}\nTurma: ${data.turma}\nHora: ${data.hora}`;
-
+                    let msg = `${acao}\n\nAluno: ${data.aluno}\nHora: ${data.hora}`;
                     mostrarFeedback(msg, data.tipo.toLowerCase());
                 } else {
-                    mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
+                    mostrarFeedback(data.mensagem || "ERRO NO REGISTRO", "erro");
                 }
             } catch (e) {
                 mostrarFeedback("FALHA DE CONEXÃO", "erro");
@@ -154,19 +150,17 @@
 
         function mostrarFeedback(mensagem, tipo) {
             const fb = document.getElementById('feedback');
-            fb.innerText = mensagem;
+            fb.innerText = message; // Atribui o texto
             fb.style.display = 'block';
 
-            // Customização dinâmica das cores de feedback com base no tipo retornado pelo index.py
             if (tipo === "entrada") {
-                fb.style.background = "var(--success)"; // Verde Esmeralda para Entrada
+                fb.style.background = "var(--success)"; // Verde
             } else if (tipo === "saída" || tipo === "saida") {
-                fb.style.background = "var(--info)";    // Azul para Saída
+                fb.style.background = "var(--info)";    // Azul
             } else {
-                fb.style.background = "var(--danger)";  // Vermelho para erros de matrícula/escola
+                fb.style.background = "var(--danger)";  // Vermelho
             }
 
-            // Oculta a mensagem um pouco antes do leitor reativar
             setTimeout(() => { fb.style.display = 'none'; }, 3500);
         }
 
