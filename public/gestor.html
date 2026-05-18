@@ -200,10 +200,10 @@
 </div>
 
 <script>
-    // Configuração unificada para API Backend
+    // Configuração Inteligente de Ambiente (Localhost vs Produção Vercel)
     const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
         ? "http://127.0.0.1:5000/api"
-        : "https://pontoback-tau.vercel.app/api";
+        : window.location.origin + "/api";
 
     let config = JSON.parse(localStorage.getItem("config_gestor_alunos"));
     let alunosAtuais = [];
@@ -254,78 +254,82 @@
     }
 
     async function carregarAlunos() {
-        const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
-        alunosAtuais = await res.json();
-        document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
+        try {
+            const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
+            if(!res.ok) return;
+            alunosAtuais = await res.json();
+            document.getElementById('dash-total-alunos').innerText = alunosAtuais.length;
 
-        document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
-            <tr>
-                <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
-                <td>${a.turma || 'Não definida'}</td>
-                <td>${a.responsavel || '---'}</td>
-                <td style="text-align: right;">
-                    <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
-                    <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
-                    <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
+            document.getElementById('lista-alunos').innerHTML = alunosAtuais.map(a => `
+                <tr>
+                    <td><strong>${a.nome}</strong><br><small>${a.matricula}</small></td>
+                    <td>${a.turma || 'Não definida'}</td>
+                    <td>${a.responsavel || '---'}</td>
+                    <td style="text-align: right;">
+                        <button onclick="prepararEdicao('${a.matricula}')" class="btn-icon" style="color:var(--info)"><i class="fas fa-edit"></i></button>
+                        <button onclick="abrirQR('${a.matricula}', '${a.nome}')" class="btn-icon" style="color:#000"><i class="fas fa-qrcode"></i></button>
+                        <button onclick="removerAluno('${a.matricula}')" class="btn-icon" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        } catch(e) { console.error("Erro ao obter alunos:", e); }
     }
 
     async function carregarHistorico() {
-        const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
-        const logsPresencas = await res.json();
+        try {
+            const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
+            if(!res.ok) return;
+            const logsPresencas = await res.json();
 
-        const hoje = new Date().toISOString().split('T')[0];
-        const presencasHoje = logsPresencas.filter(p => p.data === hoje);
-        document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
+            const hoje = new Date().toISOString().split('T')[0];
+            const presencasHoje = logsPresencas.filter(p => p.data === hoje);
+            document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-        // Renderiza as últimas 5 movimentações no Dashboard
-        document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
-            const tipoMov = p.tipo || "ENTRADA";
-            const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
-            return `
-                <tr>
-                    <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                    <td><span class="badge ${badgeClass}">${tipoMov}</span></td>
-                    <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
-                </tr>
-            `;
-        }).join('');
+            // Renderiza as últimas 5 movimentações no Dashboard
+            document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
+                const tipoMov = p.tipo || "ENTRADA";
+                const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
+                return `
+                    <tr>
+                        <td><strong>${p.aluno}</strong></td>
+                        <td>${p.turma}</td>
+                        <td><span class="badge ${badgeClass}">${tipoMov}</span></td>
+                        <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
+                    </tr>
+                `;
+            }).join('');
 
-        // Preenche o histórico completo de Logs
-        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-            const tipoMov = p.tipo || "ENTRADA";
-            const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
-            return `
-                <tr>
-                    <td>${p.data}</td>
-                    <td>${p.hora}</td>
-                    <td><code>${p.matricula}</code></td>
-                    <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                    <td><span class="badge ${badgeClass}">${tipoMov}</span></td>
-                </tr>
-            `;
-        }).join('');
+            // Preenche o histórico completo de Logs
+            document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
+                const tipoMov = p.tipo || "ENTRADA";
+                const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
+                return `
+                    <tr>
+                        <td>${p.data}</td>
+                        <td>${p.hora}</td>
+                        <td><code>${p.matricula}</code></td>
+                        <td><strong>${p.aluno}</strong></td>
+                        <td>${p.turma}</td>
+                        <td><span class="badge ${badgeClass}">${tipoMov}</span></td>
+                    </tr>
+                `;
+            }).join('');
 
-        // Garante que a tabela apareça completa inicialmente
-        filtrarHistorico();
+            // Mantém a exibição padrão completa se nenhum filtro for digitado
+            filtrarHistorico();
+        } catch(e) { console.error("Erro ao obter histórico:", e); }
     }
 
-    // Função de filtragem inteligente e estável
     function filtrarHistorico() {
-        const mesSel = document.getElementById('filtro-mes').value; // "YYYY-MM"
+        const mesSel = document.getElementById('filtro-mes').value; 
         const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
-        
         const linhas = document.querySelectorAll('#lista-historico-completo tr');
         
         linhas.forEach(linha => {
             if (linha.children.length < 5) return;
             
-            const dataTxt = linha.children[0].innerText; // Coluna 1: Data
-            const salaTxt = linha.children[4].innerText.toLowerCase(); // Coluna 5: Turma
+            const dataTxt = linha.children[0].innerText; 
+            const salaTxt = linha.children[4].innerText.toLowerCase(); 
             
             const bateMes = !mesSel || dataTxt.startsWith(mesSel);
             const bateSala = !salaSel || salaTxt.includes(salaSel);
