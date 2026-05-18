@@ -38,7 +38,7 @@
 
     <div id="login-area" class="card">
         <h2>Ativar Totem Tablet</h2>
-        <p class="info-text">Identifique a escola usando o CNPJ e Senha configurados no painel administrative.</p>
+        <p class="info-text">Identifique a escola usando o CNPJ e Senha configurados no painel administrativo.</p>
         <input type="text" id="t-cnpj" placeholder="CNPJ da Escola">
         <input type="password" id="t-senha" placeholder="Senha de Acesso (Totem)">
         <button onclick="ativarTablet()">Ativar Dispositivo</button>
@@ -72,7 +72,7 @@
             }
         }
 
-        async function activarTablet() {
+        async function ativarTablet() {
             const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value.trim();
 
@@ -122,7 +122,6 @@
             const matriculaLimpa = conteudoLido.replace(/\D/g, "");
 
             try {
-                // CORREÇÃO AQUI: Alterado de /ponto/registrar para /ponto para bater com o index.py
                 const res = await fetch(`${API_URL}/ponto`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -143,22 +142,21 @@
             } catch (e) {
                 mostrarFeedback("FALHA DE CONEXÃO", "erro");
             } finally {
-                // Aguarda 4 segundos antes de liberar o próximo aluno (evita loops de leitura imediata)
                 setTimeout(() => { window.processandoPonto = false; }, 4000);
             }
         }
 
         function mostrarFeedback(mensagem, tipo) {
             const fb = document.getElementById('feedback');
-            fb.innerText = message; // Atribui o texto
+            fb.innerText = mensagem; 
             fb.style.display = 'block';
 
             if (tipo === "entrada") {
-                fb.style.background = "var(--success)"; // Verde
+                fb.style.background = "var(--success)"; 
             } else if (tipo === "saída" || tipo === "saida") {
-                fb.style.background = "var(--info)";    // Azul
+                fb.style.background = "var(--info)";    
             } else {
-                fb.style.background = "var(--danger)";  // Vermelho
+                fb.style.background = "var(--danger)";  
             }
 
             setTimeout(() => { fb.style.display = 'none'; }, 3500);
