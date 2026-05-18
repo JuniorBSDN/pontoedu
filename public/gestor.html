@@ -247,7 +247,7 @@
             const res = await fetch(`${API_URL}/clientes/login-tablet`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ cnpj, senate: senha }) // Tratando segurança simples mapeada
+                body: JSON.stringify({ cnpj, senate: senha })
             }).catch(() => fetch(`${API_URL}/clientes/login-tablet`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -266,26 +266,25 @@
         }
     }
 
-    // FUNÇÃO DE FILTRAGEM COMPLETA E FLEXÍVEL POR DIA, MÊS OU ANO
     function filtrarHistorico() {
-        const dataCalendario = document.getElementById('filtro-data').value; // "YYYY-MM-DD"
-        const dataTexto = document.getElementById('filtro-data-texto').value.trim(); // "YYYY-MM" ou "YYYY"
+        const dataCalendario = document.getElementById('filtro-data').value;
+        const dataTexto = document.getElementById('filtro-data-texto').value.trim();
         const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
 
         const linhas = document.querySelectorAll('#lista-historico-completo tr');
 
         linhas.forEach(linha => {
-            const dataTxt = linha.children[0].innerText.trim(); // "YYYY-MM-DD"
+            const dataTxt = linha.children[0].innerText.trim();
             const salaTxt = linha.children[4].innerText.toLowerCase();
 
             let bateData = false;
 
             if (!dataCalendario && !dataTexto) {
-                bateData = true; // Sem filtro de data ativo
+                bateData = true;
             } else if (dataCalendario) {
-                bateData = (dataTxt === dataCalendario); // Casamento exato por Dia
+                bateData = (dataTxt === dataCalendario);
             } else if (dataTexto) {
-                bateData = dataTxt.includes(dataTexto); // Casamento flexível por Mês (YYYY-MM) ou Ano (YYYY)
+                bateData = dataTxt.includes(dataTexto);
             }
 
             const bateSala = !salaSel || salaTxt.includes(salaSel);
@@ -321,12 +320,10 @@
         const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
         const logsPresencas = await res.json();
 
-        // Pega data local de hoje no formato YYYY-MM-DD
         const hoje = new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-');
         const presencasHoje = logsPresencas.filter(p => p.data === hoje);
         document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-        // Renderiza as 5 batidas mais recentes no Dashboard
         document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
             const fluxo = p.tipo || "ENTRADA";
             const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
@@ -340,25 +337,22 @@
             `;
         }).join('');
 
-        // Histórico Geral Completo
-        // Dentro da função carregarHistorico() no gestor.html:
-document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-    // Garante que se p.tipo não existir por registros antigos, assume ENTRADA
-    const fluxo = p.tipo || "ENTRADA"; 
-    const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
-    
-    return `
-        <tr>
-            <td>${p.data}</td>
-            <td>${p.hora}</td>
-            <td><code>${p.matricula}</code></td>
-            <td><strong>${p.aluno}</strong></td>
-            <td>${p.turma || 'N/A'}</td>
-            <td><span class="badge ${badgeClass}">${fluxo}</span></td>
-        </tr>
-    `;
-}).join('');
-    
+        document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
+            const fluxo = p.tipo || "ENTRADA"; 
+            const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
+            
+            return `
+                <tr>
+                    <td>${p.data}</td>
+                    <td>${p.hora}</td>
+                    <td><code>${p.matricula}</code></td>
+                    <td><strong>${p.aluno}</strong></td>
+                    <td>${p.turma || 'N/A'}</td>
+                    <td><span class="badge ${badgeClass}">${fluxo}</span></td>
+                </tr>
+            `;
+        }).join('');
+    }
 
     async function salvarAluno() {
         const isEdit = document.getElementById('a-matricula').disabled;
