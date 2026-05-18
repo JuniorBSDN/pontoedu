@@ -125,61 +125,60 @@ def gerenciar_aluno_especifico(matricula):
 # --- CONTROLE DE FREQUÊNCIA (ENTRADAS E SAÍDAS SINCRONIZADAS) ---
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
-    dados = request.json
-    matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
-    id_cliente = dados.get('id_cliente')
+    try:
+        dados = request.json
+        matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
+        id_cliente = dados.get('id_cliente')
 
-    if not matricula:
-        return jsonify({"erro": "Matrícula inválida"}), 400
+        if not matricula or not id_cliente:
+            return jsonify({"status": "erro", "mensagem": "Dados incompletos."}), 400
 
-    aluno_ref = db.collection('alunos').document(matricula).get()
-    if not aluno_ref.exists:
-        return jsonify({"erro": "Aluno não cadastrado"}), 404
+        aluno_ref = db.collection('alunos').document(matricula).get()
+        if not aluno_ref.exists:
+            return jsonify({"status": "erro", "mensagem": "Aluno não cadastrado."}), 404
 
-    aluno = aluno_ref.to_dict()
+        aluno_dados = aluno_ref.to_dict()
 
-    if aluno.get('cliente_id') != id_cliente:
-        return jsonify({"erro": "Aluno não pertence a esta unidade"}), 403
+        if aluno_dados.get('cliente_id') != id_cliente:
+            return jsonify({"status": "erro", "mensagem": "Aluno não pertence a esta unidade."}), 403
 
-    agora = get_agora_br()
-    hoje_str = agora.date().isoformat()
+        agora = get_agora_br()
+        data_hoje = agora.date().isoformat()
+        hora_atual = agora.strftime('%H:%M:%S')
 
-    # Busca se o aluno já possui registros no dia de hoje
-    docs_hoje = db.collection('pontos') \
-        .where('matricula', '==', matricula) \
-        .where('data', '==', hoje_str) \
-        .get()
+        # Busca registros do aluno hoje para alternar entre Entrada e Saída
+        docs_hoje = db.collection('pontos') \
+            .where('matricula', '==', matricula) \
+            .where('data', '==', data_hoje) \
+            .get()
 
-    # Lógica de alternância automática: se não tem registros hoje é ENTRADA, se já tem é SAÍDA
-    tipo_movimentacao = "ENTRADA" if len(docs_hoje) == 0 else "SAÍDA"
+        # Se não tiver nenhum registro hoje, é ENTRADA. Se já tiver, é SAÍDA.
+        proximo_tipo = "ENTRADA" if len(docs_hoje) == 0 else "SAÍDA"
 
-    # Evita que o aluno bata saída múltiplas vezes seguidas no mesmo minuto por erro
-    if len(docs_hoje) > 0:
-        ultimas_batidas = [d.to_dict() for d in docs_hoje]
-        ultimas_batidas.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
-        if ultimas_batidas[0].get('tipo') == "SAÍDA":
-            # Se a última batida já foi uma saída, avisa ou gerencia o limite se necessário
-            pass
+        novo_ponto = {
+            "aluno": aluno_dados.get('nome'),
+            "matricula": matricula,
+            "turma": aluno_dados.get('turma', 'Não definida'),
+            "cliente_id": id_cliente,  # Ajustado para a busca do histórico funcionar!
+            "data": data_hoje,
+            "hora": hora_atual,
+            "tipo": proximo_tipo,      # Salvando o tipo para aparecer no Gestor!
+            "timestamp_servidor": agora.isoformat()
+        }
 
-    novo_ponto = {
-        "matricula": matricula,
-        "aluno": aluno['nome'],
-        "turma": aluno.get('turma', 'Não definida'),
-        "id_cliente": id_cliente,
-        "timestamp_servidor": agora.isoformat(),
-        "data": hoje_str,
-        "hora": agora.strftime('%H:%M:%S'),
-        "tipo": tipo_movimentacao # Gravando o tipo corretamente para o Histórico!
-    }
-    db.collection('pontos').add(novo_ponto)
+        db.collection('pontos').add(novo_ponto)
 
-    return jsonify({
-        "status": "success",
-        "tipo": tipo_movimentacao, # Retornando ENTRADA ou SAÍDA para o tablet mudar de cor
-        "aluno": aluno['nome'],
-        "turma": aluno.get('turma', 'N/A'),
-        "hora": novo_ponto['hora']
-    }), 200
+        return jsonify({
+            "status": "sucesso",
+            "aluno": aluno_dados.get('nome'),
+            "tipo": proximo_tipo.lower(), # 'entrada' ou 'saída' para o tablet mudar de cor
+            "hora": hora_atual
+        }), 200
+
+    except Exception as e:
+        return jsonify({"status": "erro", "mensagem": str(e)}), 500
+
+
 @app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
 def historico_unidade(cliente_id):
     docs = db.collection('pontos').where('cliente_id', '==', cliente_id).get()
