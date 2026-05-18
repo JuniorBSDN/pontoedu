@@ -72,8 +72,7 @@
             }
         }
 
-        async function activarTablet() {
-            // Código corrigido para enviar login tablet conforme o index.py espera
+        async function ativarTablet() {
             const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value.trim();
 
@@ -137,7 +136,7 @@
                 const data = await res.json();
 
                 if (res.ok) {
-                    // O backend do seu index.py retorna data.tipo como "ENTRADA" ou "SAÍDA"
+                    // O backend retorna data.tipo como "ENTRADA" ou "SAÍDA"
                     let acao = data.tipo === "ENTRADA" ? "ENTRADA CONFIRMADA!" : "SAÍDA CONFIRMADA!";
                     let msg = `${acao}\n\nAluno: ${data.aluno}\nTurma: ${data.turma}\nHora: ${data.hora}`;
 
@@ -148,7 +147,7 @@
             } catch (e) {
                 mostrarFeedback("FALHA DE CONEXÃO", "erro");
             } finally {
-                // Aguarda 4 segundos antes de liberar o próximo aluno (evita loops)
+                // Aguarda 4 segundos antes de liberar o próximo aluno (evita loops de leitura imediata)
                 setTimeout(() => { window.processandoPonto = false; }, 4000);
             }
         }
@@ -160,7 +159,7 @@
 
             // Customização dinâmica das cores de feedback com base no tipo retornado pelo index.py
             if (tipo === "entrada") {
-                fb.style.background = "var(--success)"; // Verde Matrix para Entrada
+                fb.style.background = "var(--success)"; // Verde Esmeralda para Entrada
             } else if (tipo === "saída" || tipo === "saida") {
                 fb.style.background = "var(--info)";    // Azul para Saída
             } else {
