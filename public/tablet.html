@@ -6,7 +6,7 @@
     <title>PontoEdu | Terminal Tablet</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; --info: #3b82f6; }
+        :root { --primary: #4f46e5; --bg: #0f172a; --card: #1e293b; --success: #22c55e; --danger: #ef4444; }
         body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; overflow: hidden; }
         .card { background: var(--card); padding: 30px; border-radius: 16px; width: 90%; max-width: 450px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
         input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; box-sizing: border-box; font-size: 1rem; }
@@ -15,13 +15,13 @@
         #reader { width: 100%; margin-top: 20px; border-radius: 12px; overflow: hidden; border: 2px solid #334155; }
         #feedback {
             display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            padding: 20px 40px; border-radius: 12px; font-size: 1.5rem; font-weight: bold;
+            padding: 20px 40px; border-radius: 12px; font-size: 1.3rem; font-weight: bold;
             z-index: 9999; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.4);
             animation: slideDown 0.5s ease-out; white-space: pre-wrap;
         }
         @keyframes slideDown { from { top: -100px; } to { top: 20px; } }
         .info-text { margin-top: 15px; color: #94a3b8; font-size: 0.9rem; }
-        #nome-unidade { color: var(--primary); font-weight: bold; }
+        #nome-unidade { color: #818cf8; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -29,29 +29,27 @@
     <div id="feedback"></div>
 
     <div id="login-area" class="card">
-        <h2>Ativar Tablet</h2>
-        <p class="info-text">Identifique a unidade para começar</p>
-        <input type="text" id="t-cnpj" placeholder="CNPJ da Unidade">
+        <h2>Ativar Totem Tablet</h2>
+        <p class="info-text">Identifique a unidade de ensino para começar</p>
+        <input type="text" id="t-cnpj" placeholder="CNPJ da Escola">
         <input type="password" id="t-senha" placeholder="Senha de Acesso">
         <button onclick="ativarTablet()">Ativar Dispositivo</button>
     </div>
 
     <div id="ponto-area" class="card" style="display: none;">
-        <h2 id="nome-unidade">Unidade Carregando...</h2>
-        <p>Aponte seu QR Code para a câmera</p>
+        <h2 id="nome-unidade">Carregando Unidade...</h2>
+        <p style="margin-top: 5px; color: #cbd5e1;">Aponte a carteirinha QR Code para a câmera</p>
 
         <div id="reader"></div>
 
-        <p class="info-text">O sistema detectará entrada/saída automaticamente.</p>
-        <button onclick="sair()" style="margin-top: 20px; background: #334155; padding: 8px;">Sair / Trocar Unidade</button>
+        <p class="info-text">O sistema impedirá duplicidades automáticas no mesmo dia.</p>
+        <button onclick="sair()" style="margin-top: 20px; background: #334155; padding: 8px;">Sair / Trocar Escola</button>
     </div>
 
     <script>
-        const API_URL = "https://pontoback-tau.vercel.app/api";
+        // Sincroniza dinamicamente com a URL base que está hospedando o app
+        const API_URL = window.location.origin + "/api";
         let config = JSON.parse(localStorage.getItem("config_tablet"));
-        let machineId = localStorage.getItem("machine_id") || "TAB-" + Math.random().toString(36).substr(2, 9).toUpperCase();
-
-        if (!localStorage.getItem("machine_id")) localStorage.setItem("machine_id", machineId);
 
         function iniciar() {
             if (config) {
@@ -62,8 +60,8 @@
             }
         }
 
-        async function ativarTablet() {
-            const cnpj = document.getElementById('t-cnpj').value;
+        async function activarTablet() {
+            const cnpj = document.getElementById('t-cnpj').value.replace(/\D/g, '');
             const senha = document.getElementById('t-senha').value;
 
             try {
@@ -77,24 +75,9 @@
                     const dados = await res.json();
                     config = { id: dados.id, nome: dados.nome };
                     localStorage.setItem("config_tablet", JSON.stringify(config));
-
-                    await fetch(`${API_URL}/clientes/ativar-dispositivo`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            cliente_id: config.id,
-                            machine_id: machineId,
-                            modelo: "Tablet Terminal"
-                        })
-                    });
-
                     location.reload();
-                } else {
-                    mostrarFeedback("Acesso negado!", "erro");
-                }
-            } catch (e) {
-                mostrarFeedback("Erro ao conectar com servidor", "erro");
-            }
+                } else { mostrarFeedback("Acesso negado!", "erro"); }
+            } catch (e) { mostrarFeedback("Erro ao conectar com o servidor", "erro"); }
         }
 
         function startScanner() {
@@ -103,13 +86,11 @@
                 qrbox: { width: 250, height: 250 }
             });
 
-            scanner.render(async (cpfLido) => {
-                // EVITA DUPLO CLIQUE OU LEITURA REPETIDA
+            scanner.render(async (conteudoLido) => {
                 if (window.processandoPonto) return;
                 window.processandoPonto = true;
 
-                // Garante que o CPF enviado seja apenas números (IMPORTANTE)
-                const cpfLimpo = cpfLido.replace(/\D/g, "");
+                const matriculaLimpa = conteudoLido.replace(/\D/g, "");
 
                 try {
                     const res = await fetch(`${API_URL}/ponto/registrar`, {
@@ -117,30 +98,23 @@
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({
                             id_cliente: config.id,
-                            id_funcionario: cpfLimpo,
-                            machine_id: machineId,
-                            timestamp_local: new Date().toISOString(),
-                            geo: "0,0"
+                            matricula: matriculaLimpa
                         })
                     });
 
                     const data = await res.json();
 
                     if (res.ok) {
-                        // O index.py deve retornar 'tipo' e 'horas'
-                        let msg = data.tipo === "ENTRADA"
-                            ? `BOM TRABALHO!\nEntrada: ${data.funcionario || ''}`
-                            : `ATÉ LOGO!\nSaída: ${data.horas || 0}h trabalhadas`;
-
-                        mostrarFeedback(msg, data.tipo === "ENTRADA" ? "sucesso" : "info");
+                        let msg = `PRESENÇA CONFIRMADA!\nAluno: ${data.aluno}\nTurma: ${data.turma}\nHora: ${data.hora}`;
+                        mostrarFeedback(msg, "sucesso");
                     } else {
                         mostrarFeedback(data.erro || "ERRO NO REGISTRO", "erro");
                     }
                 } catch (e) {
-                    mostrarFeedback("FALHA NA CONEXÃO", "erro");
+                    mostrarFeedback("FALHA DE COMUNICAÇÃO", "erro");
                 } finally {
-                    // Espera 5 segundos para permitir nova leitura (tempo para o funcionário sair da frente)
-                    setTimeout(() => { window.processandoPonto = false; }, 5000);
+                    // Timeout de 4 segundos para o aluno se afastar sem registrar repetido
+                    setTimeout(() => { window.processandoPonto = false; }, 4000);
                 }
             });
         }
@@ -149,16 +123,12 @@
             const fb = document.getElementById('feedback');
             fb.innerText = mensagem;
             fb.style.display = 'block';
-
-            if (tipo === "sucesso") fb.style.background = "var(--success)";
-            else if (tipo === "info") fb.style.background = "var(--info)";
-            else fb.style.background = "var(--danger)";
-
-            setTimeout(() => { fb.style.display = 'none'; }, 4000);
+            fb.style.background = tipo === "sucesso" ? "var(--success)" : "var(--danger)";
+            setTimeout(() => { fb.style.display = 'none'; }, 3500);
         }
 
         function sair() {
-            if(confirm("Deseja desativar este tablet?")) {
+            if(confirm("Deseja desativar este totem?")) {
                 localStorage.clear();
                 location.reload();
             }
