@@ -140,10 +140,20 @@
     </div>
 
     <div id="tab-logs" class="tab-content">
-        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem;">
-    <input type="month" id="filtro-mes" onchange="filtrarHistorico()" style="margin:0; max-width:200px;">
-    <input type="text" id="filtro-sala" placeholder="Filtrar por Turma/Sala" oninput=filtrarHistorico() style="margin:0; max-width:200px;">
-</div>
+        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: flex-end;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <small style="color:#64748b; font-weight:600;">Filtrar por Dia Exato:</small>
+                <input type="date" id="filtro-data" onchange="limparFiltroTextoData(); filtrarHistorico();" style="margin:0; width:170px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <small style="color:#64748b; font-weight:600;">Ou por Mês/Ano Livre:</small>
+                <input type="text" id="filtro-data-texto" placeholder="Ex: 2026-05 ou 2026" oninput="limparFiltroCalendario(); filtrarHistorico();" style="margin:0; max-width:180px;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <small style="color:#64748b; font-weight:600;">Filtrar por Turma:</small>
+                <input type="text" id="filtro-sala" placeholder="Ex: 9º Ano A" oninput="filtrarHistorico()" style="margin:0; max-width:180px;">
+            </div>
+        </div>
         <header style="margin-bottom:2.5rem;">
             <h1>Histórico de Frequência</h1>
             <p style="color: #64748b;">Arquivo completo de acessos cronológicos.</p>
@@ -214,6 +224,15 @@
         element.classList.add('active');
     }
 
+    function limparFiltroTextoData() {
+        document.getElementById('add-data-texto') ? document.getElementById('add-data-texto').value = "" : null;
+        document.getElementById('filtro-data-texto').value = "";
+    }
+
+    function limparFiltroCalendario() {
+        document.getElementById('filtro-data').value = "";
+    }
+
     async function fazerLogin() {
         const cnpjInput = document.getElementById('l-cnpj').value;
         const cnpj = cnpjInput.replace(/\D/g, '');
@@ -228,41 +247,57 @@
             const res = await fetch(`${API_URL}/clientes/login-tablet`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ cnpj, senate: senha }) // Tratando segurança simples mapeada
+            }).catch(() => fetch(`${API_URL}/clientes/login-tablet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ cnpj, senha })
-            });
+            }));
 
             if (res.ok) {
                 const dados = await res.json();
                 localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
                 location.reload();
-            } else { 
-                alert("Acesso negado! Verifique suas credenciais."); 
+            } else {
+                alert("Acesso negado! Verifique suas credenciais.");
             }
         } catch (e) {
             alert("Erro de comunicação com o servidor.");
         }
     }
 
+    // FUNÇÃO DE FILTRAGEM COMPLETA E FLEXÍVEL POR DIA, MÊS OU ANO
     function filtrarHistorico() {
-    const mesSel = document.getElementById('filtro-mes').value; // Retorna "YYYY-MM"
-    const salaSel = document.getElementById('filtro-sala').value.toLowerCase();
-    
-    const linhas = document.querySelectorAll('#lista-historico-completo tr');
-    
-    linhas.forEach(linha => {
-        const dataTxt = linha.children[0].innerText; // Coluna da Data (YYYY-MM-DD)
-        const salaTxt = linha.children[4].innerText.toLowerCase(); // Coluna da Turma
-        
-        const bateMes = !mesSel || dataTxt.startsWith(mesSel);
-        const bateSala = !salaSel || salaTxt.includes(salaSel);
-        
-        if(bateMes && bateSala) {
-            linha.style.display = "";
-        } else {
-            linha.style.display = "none";
-        }
-    });
-}
+        const dataCalendario = document.getElementById('filtro-data').value; // "YYYY-MM-DD"
+        const dataTexto = document.getElementById('filtro-data-texto').value.trim(); // "YYYY-MM" ou "YYYY"
+        const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
+
+        const linhas = document.querySelectorAll('#lista-historico-completo tr');
+
+        linhas.forEach(linha => {
+            const dataTxt = linha.children[0].innerText.trim(); // "YYYY-MM-DD"
+            const salaTxt = linha.children[4].innerText.toLowerCase();
+
+            let bateData = false;
+
+            if (!dataCalendario && !dataTexto) {
+                bateData = true; // Sem filtro de data ativo
+            } else if (dataCalendario) {
+                bateData = (dataTxt === dataCalendario); // Casamento exato por Dia
+            } else if (dataTexto) {
+                bateData = dataTxt.includes(dataTexto); // Casamento flexível por Mês (YYYY-MM) ou Ano (YYYY)
+            }
+
+            const bateSala = !salaSel || salaTxt.includes(salaSel);
+
+            if (bateData && bateSala) {
+                linha.style.display = "";
+            } else {
+                linha.style.display = "none";
+            }
+        });
+    }
+
     async function carregarAlunos() {
         const res = await fetch(`${API_URL}/alunos/unidade/${config.id}`);
         alunosAtuais = await res.json();
@@ -286,36 +321,37 @@
         const res = await fetch(`${API_URL}/ponto/unidade/${config.id}`);
         const logsPresencas = await res.json();
 
-        const hoje = new Date().toISOString().split('T')[0];
+        // Pega data local de hoje no formato YYYY-MM-DD
+        const hoje = new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-');
         const presencasHoje = logsPresencas.filter(p => p.data === hoje);
         document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-        // Renderiza as 5 batidas mais recentes no Dashboard discriminando Entrada/Saída
+        // Renderiza as 5 batidas mais recentes no Dashboard
         document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
-            const isEntrada = p.tipo === "ENTRADA";
-            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            const fluxo = p.tipo || "ENTRADA";
+            const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
             return `
                 <tr>
                     <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                    <td><span class="badge ${badgeClass}">${p.tipo}</span></td>
+                    <td>${p.turma || 'N/A'}</td>
+                    <td><span class="badge ${badgeClass}">${fluxo}</span></td>
                     <td><span style="color:var(--primary); font-weight:600;">${p.hora}</span></td>
                 </tr>
             `;
         }).join('');
 
-        // Histórico Geral
+        // Histórico Geral Completo
         document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
-            const isEntrada = p.tipo === "ENTRADA";
-            const badgeClass = isEntrada ? "badge-entrada" : "badge-saida";
+            const fluxo = p.tipo || "ENTRADA";
+            const badgeClass = fluxo === "ENTRADA" ? "badge-entrada" : "badge-saida";
             return `
                 <tr>
                     <td>${p.data}</td>
                     <td>${p.hora}</td>
                     <td><code>${p.matricula}</code></td>
                     <td><strong>${p.aluno}</strong></td>
-                    <td>${p.turma}</td>
-                    <td><span class="badge ${badgeClass}">${p.tipo || 'ENTRADA'}</span></td>
+                    <td>${p.turma || 'N/A'}</td>
+                    <td><span class="badge ${badgeClass}">${fluxo}</span></td>
                 </tr>
             `;
         }).join('');
