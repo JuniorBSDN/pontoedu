@@ -58,37 +58,33 @@
 <body>
 
 <div id="login-area" class="no-print" style="position: fixed; inset: 0; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; z-index: 5000;">
-    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center;">
-        <h2 style="color:white; margin-bottom:1.5rem;">Gestão de Alunos</h2>
+    <div style="background:#1e293b; padding:2.5rem; border-radius:16px; width:380px; text-align:center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.4);">
+        <h2 style="color:white; margin-bottom:1.5rem; font-weight: 700;">Gestão de Alunos</h2>
         <input type="text" id="l-cnpj" placeholder="CNPJ da Instituição">
-        <input type="password" id="l-senha" placeholder="Senha Administrativa">
-        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center;" onclick="fazerLogin()">Acessar Painel</button>
+        <input type="password" id="l-senha" placeholder="Senha de Acesso (Totem)">
+        <button class="btn" style="width:100%; margin-top: 1rem; justify-content: center; background: var(--primary);" onclick="fazerLogin()">Acessar Painel</button>
     </div>
 </div>
 
 <nav class="sidebar no-print">
     <div>
         <h2 style="color:#10b981; margin-bottom: 2rem;">PontoEdu</h2>
-
         <div style="margin-bottom: 1.5rem; border-bottom: 1px solid #1e293b; padding-bottom: 1rem;">
             <small style="color:#94a3b8; text-transform: uppercase; font-size: 0.7rem;">Escola:</small>
             <strong id="unidade-nome" style="display:block; color: white; font-size: 1.1rem;">---</strong>
         </div>
-
         <div class="sidebar-menu">
             <div class="nav-link active" onclick="switchTab('tab-dash', this)"><i class="fas fa-chart-pie"></i> Dashboard</div>
             <div class="nav-link" onclick="switchTab('tab-alunos', this)"><i class="fas fa-user-graduate"></i> Alunos</div>
             <div class="nav-link" onclick="switchTab('tab-logs', this)"><i class="fas fa-clipboard-list"></i> Histórico / Logs</div>
         </div>
     </div>
-
     <button onclick="sair()" style="background:none; border:1px solid #334155; color:#94a3b8; width:100%; padding:10px; border-radius:8px; cursor:pointer;">
         <i class="fas fa-sign-out-alt"></i> Sair
     </button>
 </nav>
 
 <main class="main">
-
     <div id="tab-dash" class="tab-content active">
         <header style="margin-bottom:2.5rem;">
             <h1>Visão Geral</h1>
@@ -128,7 +124,6 @@
             </div>
             <button class="btn" onclick="abrirModalAluno()"><i class="fas fa-user-plus"></i> Novo Aluno</button>
         </header>
-
         <div class="card">
             <table>
                 <thead>
@@ -150,12 +145,12 @@
             <p style="color: #64748b;">Arquivo completo de acessos cronológicos.</p>
         </header>
 
-        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
-            <div style="flex: 1; max-width: 250px;">
+        <div class="card no-print" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px; max-width: 250px;">
                 <small style="color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Filtrar por Mês:</small>
                 <input type="month" id="filtro-mes" onchange="filtrarHistorico()" style="margin:0;">
             </div>
-            <div style="flex: 1; max-width: 300px;">
+            <div style="flex: 1; min-width: 200px; max-width: 300px;">
                 <small style="color: #64748b; font-weight: 600; display: block; margin-bottom: 4px;">Filtrar por Turma/Sala:</small>
                 <input type="text" id="filtro-sala" placeholder="Ex: 9º Ano A" oninput="filtrarHistorico()" style="margin:0;">
             </div>
@@ -187,7 +182,6 @@
         <input type="text" id="a-turma" placeholder="Série/Turma (Ex: 9º Ano A)">
         <input type="text" id="a-responsavel" placeholder="Nome do Responsável">
         <input type="text" id="a-senha" placeholder="Senha de Acesso (Totem)">
-
         <button class="btn" style="width:100%; margin-top:1rem; justify-content: center;" onclick="salvarAluno()">Salvar Aluno</button>
         <button onclick="fecharModais()" style="width:100%; background:none; border:none; margin-top:10px; cursor:pointer; color:#64748b;">Cancelar</button>
     </div>
@@ -206,7 +200,11 @@
 </div>
 
 <script>
-    const API_URL = "https://pontoback-tau.vercel.app/api";
+    // Configuração unificada para API Backend
+    const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? "http://127.0.0.1:5000/api"
+        : "https://pontoback-tau.vercel.app/api";
+
     let config = JSON.parse(localStorage.getItem("config_gestor_alunos"));
     let alunosAtuais = [];
 
@@ -227,18 +225,32 @@
     }
 
     async function fazerLogin() {
-        const cnpj = document.getElementById('l-cnpj').value.replace(/\D/g, '');
-        const senha = document.getElementById('l-senha').value;
-        const res = await fetch(`${API_URL}/clientes/login-tablet`, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ cnpj, senha })
-        });
-        if (res.ok) {
-            const dados = await res.json();
-            localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
-            location.reload();
-        } else { alert("Acesso negado. Verifique os dados."); }
+        const cnpjInput = document.getElementById('l-cnpj').value;
+        const cnpj = cnpjInput.replace(/\D/g, '');
+        const senha = document.getElementById('l-senha').value.trim();
+
+        if (!cnpj || !senha) {
+            alert("Por favor, preencha o CNPJ e a Senha.");
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_URL}/clientes/login-tablet`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ cnpj, senha })
+            });
+
+            if (res.ok) {
+                const dados = await res.json();
+                localStorage.setItem("config_gestor_alunos", JSON.stringify({ id: dados.id, nome: dados.nome }));
+                location.reload();
+            } else { 
+                alert("Acesso negado! Verifique suas credenciais."); 
+            }
+        } catch (e) {
+            alert("Erro de comunicação com o servidor.");
+        }
     }
 
     async function carregarAlunos() {
@@ -268,7 +280,7 @@
         const presencasHoje = logsPresencas.filter(p => p.data === hoje);
         document.getElementById('dash-presencas-hoje').innerText = presencasHoje.length;
 
-        // Renderiza o painel de últimas movimentações com suporte a Entrada/Saída
+        // Renderiza as últimas 5 movimentações no Dashboard
         document.getElementById('lista-ponto-recente').innerHTML = logsPresencas.slice(0, 5).map(p => {
             const tipoMov = p.tipo || "ENTRADA";
             const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
@@ -282,7 +294,7 @@
             `;
         }).join('');
 
-        // Preenche o histórico completo mantendo a estrutura correta para os filtros funcionarem
+        // Preenche o histórico completo de Logs
         document.getElementById('lista-historico-completo').innerHTML = logsPresencas.map(p => {
             const tipoMov = p.tipo || "ENTRADA";
             const badgeClass = tipoMov === "ENTRADA" ? "badge-entrada" : "badge-saida";
@@ -298,27 +310,24 @@
             `;
         }).join('');
 
-        // Executa a função uma vez após carregar os elementos para garantir o estado inicial correto
+        // Garante que a tabela apareça completa inicialmente
         filtrarHistorico();
     }
 
-    // Função de Filtragem Corrigida (Trata strings vazias sem ocultar a tabela)
+    // Função de filtragem inteligente e estável
     function filtrarHistorico() {
-        const mesSel = document.getElementById('filtro-mes').value; // Formato: "YYYY-MM"
+        const mesSel = document.getElementById('filtro-mes').value; // "YYYY-MM"
         const salaSel = document.getElementById('filtro-sala').value.toLowerCase().trim();
         
         const linhas = document.querySelectorAll('#lista-historico-completo tr');
         
         linhas.forEach(linha => {
-            // Garante que a linha possui dados válidos mapeados
             if (linha.children.length < 5) return;
             
-            const dataTxt = linha.children[0].innerText; // Coluna 1: Data (YYYY-MM-DD)
+            const dataTxt = linha.children[0].innerText; // Coluna 1: Data
             const salaTxt = linha.children[4].innerText.toLowerCase(); // Coluna 5: Turma
             
-            // Se o filtro de mês estiver vazio, bateMes é verdadeiro. Caso contrário, valida o início da string.
             const bateMes = !mesSel || dataTxt.startsWith(mesSel);
-            // Se o filtro de sala estiver vazio, bateSala é verdadeiro. Caso contrário, valida a ocorrência.
             const bateSala = !salaSel || salaTxt.includes(salaSel);
             
             if (bateMes && bateSala) {
