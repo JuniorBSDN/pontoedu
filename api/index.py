@@ -25,14 +25,27 @@ def get_agora_br():
     return datetime.now(timezone(timedelta(hours=-3)))
 
 
-# --- GERENCIAMENTO DE CLIENTES / ESCOLAS ---
+# --- LOGIN ADMINISTRATIVO MASTER (DONO DO SAAS) ---
+@app.route('/api/admin/login', methods=['POST'])
+def login_admin():
+    dados = request.json
+    senha_digitada = str(dados.get('senha', '')).strip()
+    senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
+
+    if senha_digitada == senha_mestra:
+        return jsonify({"auth": True}), 200
+    return jsonify({"erro": "Senha incorreta"}), 401
+
+
+# --- MANAGEMENT DAS UNIDADES ESCOLARES (CLIENTES DO SAAS) ---
 @app.route('/api/clientes', methods=['GET', 'POST'])
 def gerenciar_clientes():
     if request.method == 'POST':
         dados = request.json
         doc_ref = db.collection('clientes').document()
         dados['id'] = doc_ref.id
-        if 'nome' in dados: dados['nome_fantasia'] = dados['nome']
+        if 'nome' in dados: 
+            dados['nome_fantasia'] = dados['nome']
         doc_ref.set(dados)
         return jsonify(dados), 201
 
@@ -56,7 +69,7 @@ def detalhe_cliente(id):
     return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
 
 
-# --- LOGIN DO TABLET / PAINEL GESTOR (POR CNPJ) ---
+# --- LOGIN DO TABLET / PAINEL OPERACIONAL GESTOR ---
 @app.route('/api/clientes/login-tablet', methods=['POST'])
 def login_unidade():
     try:
@@ -78,14 +91,14 @@ def login_unidade():
         return jsonify({"erro": str(e)}), 500
 
 
-# --- GESTÃO DE ALUNOS (CADASTRO E LISTAGEM) ---
+# --- ACADÊMICO: GESTÃO DE ALUNOS ---
 @app.route('/api/alunos', methods=['POST'])
 def criar_aluno():
     dados = request.json
     matricula = "".join(filter(str.isdigit, str(dados['matricula'])))
     dados['matricula'] = matricula
-
-    # Salva usando a matrícula como ID do documento
+    
+    # Define a matrícula como ID do documento para otimização de consultas
     db.collection('alunos').document(matricula).set(dados)
     return jsonify(dados), 201
 
@@ -108,39 +121,39 @@ def gerenciar_aluno_especifico(matricula):
         return jsonify({"status": "excluido"})
 
 
-# --- REGISTRO DE PRESENÇA ESCOLAR (MÁXIMO 1 POR DIA) ---
+# --- CONTROLE DE FREQUÊNCIA (TRAVA DE PRESENÇA DIÁRIA UNIQUE) ---
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
     dados = request.json
     matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
     id_cliente = dados.get('id_cliente')
-
+    
     if not matricula:
         return jsonify({"erro": "Matrícula inválida"}), 400
 
     aluno_ref = db.collection('alunos').document(matricula).get()
     if not aluno_ref.exists:
-        return jsonify({"erro": "Matrícula não cadastrada"}), 404
+        return jsonify({"erro": "Aluno não cadastrado no sistema"}), 404
 
     aluno = aluno_ref.to_dict()
-
-    # Valida se o aluno pertence à escola que capturou o ponto
+    
+    # Segurança multitenant: Valida se o estudante pertence à instituição solicitante
     if aluno.get('cliente_id') != id_cliente:
-        return jsonify({"erro": "Aluno não pertence a esta instituição"}), 403
+        return jsonify({"erro": "Aluno não pertence a esta unidade de ensino"}), 403
 
     agora = get_agora_br()
     hoje_str = agora.date().isoformat()
 
-    # Bloqueia registros duplicados no mesmo dia
-    docs_hoje = db.collection('pontos') \
-        .where('matricula', '==', matricula) \
-        .where('data', '==', hoje_str) \
+    # Validação contra duplicidade no mesmo dia
+    docs_hoje = db.collection('pontos')\
+        .where('matricula', '==', matricula)\
+        .where('data', '==', hoje_str)\
         .limit(1).get()
 
     if docs_hoje:
-        return jsonify({"erro": "Presença já registrada hoje!"}), 400
+        return jsonify({"erro": "Presença já computada para o dia de hoje."}), 400
 
-    # Gravação do log de presença escolar
+    # Estruturação simplificada do registro escolar
     novo_ponto = {
         "matricula": matricula,
         "aluno": aluno['nome'],
@@ -151,7 +164,7 @@ def registrar_ponto():
         "hora": agora.strftime('%H:%M:%S')
     }
     db.collection('pontos').add(novo_ponto)
-
+    
     return jsonify({
         "status": "success",
         "aluno": aluno['nome'],
@@ -160,7 +173,6 @@ def registrar_ponto():
     }), 200
 
 
-# --- HISTÓRICO DE PRESENÇAS FILTRADO POR ESCOLA ---
 @app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
 def historico_unidade(cliente_id):
     docs = db.collection('pontos').where('id_cliente', '==', cliente_id).get()
