@@ -121,7 +121,6 @@ def gerenciar_aluno_especifico(matricula):
         return jsonify({"status": "excluido"})
 
 
-# --- CONTROLE DE FREQUÊNCIA (TRAVA DE PRESENÇA DIÁRIA UNIQUE) ---
 # --- CONTROLE DE FREQUÊNCIA (ENTRADAS E SAÍDAS SINCRONIZADAS) ---
 @app.route('/api/ponto/registrar', methods=['POST'])
 def registrar_ponto():
@@ -146,23 +145,36 @@ def registrar_ponto():
         data_hoje = agora.date().isoformat()
         hora_atual = agora.strftime('%H:%M:%S')
 
-        # Busca registros do aluno hoje para alternar entre Entrada e Saída
+        # Busca se o aluno já possui registros no dia de hoje
         docs_hoje = db.collection('pontos') \
             .where('matricula', '==', matricula) \
             .where('data', '==', data_hoje) \
             .get()
 
-        # Se não tiver nenhum registro hoje, é ENTRADA. Se já tiver, é SAÍDA.
-        proximo_tipo = "ENTRADA" if len(docs_hoje) == 0 else "SAÍDA"
+        # --- LÓGICA DE ALTERNÂNCIA INTELIGENTE CORRIGIDA ---
+        if len(docs_hoje) == 0:
+            tipo_movimentacao = "ENTRADA"
+        else:
+            ultimas_batidas = [d.to_dict() for d in docs_hoje]
+            ultimas_batidas.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
+            
+            ultimo_tipo = ultimas_batidas[0].get('tipo', 'ENTRADA')
+            
+            if ultimo_tipo == "ENTRADA":
+                tipo_movimentacao = "SAÍDA"
+            else:
+                tipo_movimentacao = "ENTRADA"
 
+        # Estrutura salvando ambos os formatos de ID para evitar conflito com o front antigo/novo
         novo_ponto = {
             "aluno": aluno_dados.get('nome'),
             "matricula": matricula,
             "turma": aluno_dados.get('turma', 'Não definida'),
-            "cliente_id": id_cliente,  # Ajustado para a busca do histórico funcionar!
+            "id_cliente": id_cliente,  
+            "cliente_id": id_cliente,  
             "data": data_hoje,
             "hora": hora_atual,
-            "tipo": proximo_tipo,      # Salvando o tipo para aparecer no Gestor!
+            "tipo": tipo_movimentacao,     
             "timestamp_servidor": agora.isoformat()
         }
 
@@ -171,7 +183,7 @@ def registrar_ponto():
         return jsonify({
             "status": "sucesso",
             "aluno": aluno_dados.get('nome'),
-            "tipo": proximo_tipo.lower(), # 'entrada' ou 'saída' para o tablet mudar de cor
+            "tipo": tipo_movimentacao.lower(), # 'entrada' ou 'saída' (com acento minúsculo para casar com tablet.html)
             "hora": hora_atual
         }), 200
 
@@ -181,8 +193,8 @@ def registrar_ponto():
 
 @app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
 def historico_unidade(cliente_id):
-    # CORREÇÃO: Filtrando por 'id_cliente' que é como está salvo no seu banco de dados
-    docs = db.collection('pontos').where('id_cliente', '==', cliente_id).get()
+    # Busca por cliente_id para alimentar perfeitamente as tabelas do gestor.html
+    docs = db.collection('pontos').where('cliente_id', '==', cliente_id).get()
     lista = [d.to_dict() for d in docs]
     lista.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
     return jsonify(lista)
