@@ -1,204 +1,215 @@
-import os
-import json
-import firebase_admin
-from firebase_admin import credentials, firestore
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from datetime import datetime, timedelta, timezone
+import os
+import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-app = Flask(__name__)
+# Estrutura de caminhos exata do seu repositório (api/api/index.py sobe para public na raiz)
+app = Flask(__name__, static_folder='../../public', static_url_path='')
 CORS(app)
 
-# --- CONFIGURAÇÃO FIREBASE ---
-FIREBASE_CONFIG = os.getenv("FIREBASE_CONFIG")
-if FIREBASE_CONFIG:
-    cred = credentials.Certificate(json.loads(FIREBASE_CONFIG))
-else:
-    cred = credentials.Certificate("serviceAccountKey.json")
-
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-db = firestore.client()
+VERCEL_BLOB_READ_WRITE_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
+DATABASE_URL = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL_NON_POOLING")
 
 
-def get_agora_br():
-    return datetime.now(timezone(timedelta(hours=-3)))
+def obter_conexao():
+    if not DATABASE_URL:
+        raise ValueError("A string de conexão (POSTGRES_URL) não foi configurada na Vercel.")
+    # Uso do RealDictCursor para mapear automaticamente as colunas como chaves do dicionário para o frontend
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    conn.autocommit = True
+    return conn
 
 
-# --- LOGIN ADMINISTRATIVO MASTER (DONO DO SAAS) ---
-@app.route('/api/admin/login', methods=['POST'])
-def login_admin():
-    dados = request.json
-    senha_digitada = str(dados.get('senha', '')).strip()
-    senha_mestra = os.getenv("ADMIN_PASSWORD", "admin123")
-
-    if senha_digitada == senha_mestra:
-        return jsonify({"auth": True}), 200
-    return jsonify({"erro": "Senha incorreta"}), 401
-
-
-# --- MANAGEMENT DAS UNIDADES ESCOLARES (CLIENTES DO SAAS) ---
-@app.route('/api/clientes', methods=['GET', 'POST'])
-def gerenciar_clientes():
-    if request.method == 'POST':
-        dados = request.json
-        doc_ref = db.collection('clientes').document()
-        dados['id'] = doc_ref.id
-        if 'nome' in dados:
-            dados['nome_fantasia'] = dados['nome']
-        doc_ref.set(dados)
-        return jsonify(dados), 201
-
-    docs = db.collection('clientes').stream()
-    return jsonify([doc.to_dict() for doc in docs])
+def inicializar_infraestrutura_banco():
+    if DATABASE_URL:
+        try:
+            conn = obter_conexao()
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS produtos (
+                    id_produto VARCHAR(255) PRIMARY KEY,
+                    nome VARCHAR(255) NOT NULL,
+                    preco NUMERIC(10, 2) NOT NULL,
+                    categoria VARCHAR(100) NOT NULL,
+                    foto TEXT NOT NULL,
+                    visivel BOOLEAN DEFAULT TRUE
+                );
+            """)
+            cursor.close()
+            conn.close()
+            print("🚀 Banco de dados verificado com sucesso.")
+        except Exception as e:
+            print(f"⚠️ Inicialização do banco: {str(e)}")
 
 
-@app.route('/api/clientes/<id>', methods=['GET', 'PUT', 'DELETE'])
-def detalhe_cliente(id):
-    doc_ref = db.collection('clientes').document(id)
-    if request.method == 'PUT':
-        dados = request.json
-        dados['id'] = id
-        doc_ref.update(dados)
-        return jsonify({"status": "atualizado"})
-    if request.method == 'DELETE':
-        doc_ref.delete()
-        return jsonify({"status": "excluido"})
-
-    doc = doc_ref.get()
-    return jsonify(doc.to_dict()) if doc.exists else ({'erro': '404'}, 404)
+# Inicializa a estrutura antes de subir as rotas
+inicializar_infraestrutura_banco()
 
 
-# --- LOGIN DO TABLET / PAINEL OPERACIONAL GESTOR ---
-@app.route('/api/clientes/login-tablet', methods=['POST'])
-def login_unidade():
-    try:
-        dados = request.json
-        cnpj_input = "".join(filter(str.isdigit, str(dados.get('cnpj', ''))))
-        senha_input = str(dados.get('senha', '')).strip()
-
-        docs = db.collection('clientes').stream()
-        for doc in docs:
-            c = doc.to_dict()
-            cnpj_banco = "".join(filter(str.isdigit, str(c.get('cnpj', ''))))
-            senha_banco = str(c.get('senha_acesso', '')).strip()
-
-            if cnpj_banco == cnpj_input and senha_banco == senha_input:
-                return jsonify({"id": doc.id, "nome": c.get('nome_fantasia', c.get('nome'))}), 200
-
-        return jsonify({"erro": "Credenciais inválidas"}), 401
-    except Exception as e:
-        return jsonify({"erro": str(e)}), 500
+# ======================================================================
+# ROTEAMENTO DE ARQUIVOS ESTÁTICOS
+# ======================================================================
+@app.route("/")
+def index():
+    return send_from_directory('../../public', 'index.html')
 
 
-# --- ACADÊMICO: GESTÃO DE ALUNOS ---
-@app.route('/api/alunos', methods=['POST'])
-def criar_aluno():
-    dados = request.json
-    matricula = "".join(filter(str.isdigit, str(dados['matricula'])))
-    dados['matricula'] = matricula
-
-    # Define a matrícula como ID do documento para otimização de consultas
-    db.collection('alunos').document(matricula).set(dados)
-    return jsonify(dados), 201
+@app.route('/<path:path>')
+def servir_arquivos_estaticos(path):
+    return send_from_directory('../../public', path)
 
 
-@app.route('/api/alunos/unidade/<cliente_id>', methods=['GET'])
-def listar_alunos(cliente_id):
-    docs = db.collection('alunos').where('cliente_id', '==', cliente_id).stream()
-    return jsonify([doc.to_dict() for doc in docs])
+# ======================================================================
+# ENDPOINT DE AUTENTICAÇÃO DO ADMINISTRADOR
+# ======================================================================
+@app.route("/api/admin/login", methods=["POST"])
+def login_administrador():
+    dados = request.get_json() or {}
+    senha_enviada = dados.get("senha")
 
+    if not senha_enviada:
+        return jsonify({"authenticated": False, "error": "Senha não informada."}), 400
 
-@app.route('/api/alunos/<matricula>', methods=['PUT', 'DELETE'])
-def gerenciar_aluno_especifico(matricula):
-    doc_ref = db.collection('alunos').document(matricula)
-    if request.method == 'PUT':
-        dados = request.json
-        doc_ref.update(dados)
-        return jsonify({"status": "atualizado"})
-    if request.method == 'DELETE':
-        doc_ref.delete()
-        return jsonify({"status": "excluido"})
+    if not ADMIN_PASSWORD:
+        return jsonify({"authenticated": False, "error": "ADMIN_PASSWORD não configurada na Vercel."}), 500
 
-
-# --- CONTROLE DE FREQUÊNCIA (ENTRADAS E SAÍDAS SINCRONIZADAS) ---
-@app.route('/api/ponto/registrar', methods=['POST'])
-def registrar_ponto():
-    try:
-        dados = request.json
-        matricula = "".join(filter(str.isdigit, str(dados.get('matricula', ''))))
-        id_cliente = dados.get('id_cliente')
-
-        if not matricula or not id_cliente:
-            return jsonify({"status": "erro", "mensagem": "Dados incompletos."}), 400
-
-        aluno_ref = db.collection('alunos').document(matricula).get()
-        if not aluno_ref.exists:
-            return jsonify({"status": "erro", "mensagem": "Aluno não cadastrado."}), 404
-
-        aluno_dados = aluno_ref.to_dict()
-
-        if aluno_dados.get('cliente_id') != id_cliente:
-            return jsonify({"status": "erro", "mensagem": "Aluno não pertence a esta unidade."}), 403
-
-        agora = get_agora_br()
-        data_hoje = agora.date().isoformat()
-        hora_atual = agora.strftime('%H:%M:%S')
-
-        # Busca se o aluno já possui registros no dia de hoje
-        docs_hoje = db.collection('pontos') \
-            .where('matricula', '==', matricula) \
-            .where('data', '==', data_hoje) \
-            .get()
-
-        # --- LÓGICA DE ALTERNÂNCIA INTELIGENTE CORRIGIDA ---
-        if len(docs_hoje) == 0:
-            tipo_movimentacao = "ENTRADA"
-        else:
-            ultimas_batidas = [d.to_dict() for d in docs_hoje]
-            ultimas_batidas.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
-            
-            ultimo_tipo = ultimas_batidas[0].get('tipo', 'ENTRADA')
-            
-            if ultimo_tipo == "ENTRADA":
-                tipo_movimentacao = "SAÍDA"
-            else:
-                tipo_movimentacao = "ENTRADA"
-
-        # Estrutura salvando ambos os formatos de ID para evitar conflito com o front antigo/novo
-        novo_ponto = {
-            "aluno": aluno_dados.get('nome'),
-            "matricula": matricula,
-            "turma": aluno_dados.get('turma', 'Não definida'),
-            "id_cliente": id_cliente,  
-            "cliente_id": id_cliente,  
-            "data": data_hoje,
-            "hora": hora_atual,
-            "tipo": tipo_movimentacao,     
-            "timestamp_servidor": agora.isoformat()
-        }
-
-        db.collection('pontos').add(novo_ponto)
-
+    # Valida contra a variável de ambiente segura configurada na Vercel
+    if str(senha_enviada).strip() == str(ADMIN_PASSWORD).strip():
         return jsonify({
-            "status": "sucesso",
-            "aluno": aluno_dados.get('nome'),
-            "tipo": tipo_movimentacao.lower(), # 'entrada' ou 'saída' (com acento minúsculo para casar com tablet.html)
-            "hora": hora_atual
+            "authenticated": True,
+            "status": "success", 
+            "token": "Bearer sessao_valida_lari_premium"
         }), 200
+    
+    return jsonify({"authenticated": False, "error": "Senha incorreta!"}), 401
 
+
+# ======================================================================
+# ENDPOINT DE UPLOAD DE FOTO (VERCEL BLOB)
+# ======================================================================
+@app.route("/api/upload", methods=["POST"])
+def upload_foto():
+    token_sessao = request.headers.get("Authorization")
+    if token_sessao != "Bearer sessao_valida_lari_premium":
+        return jsonify({"error": "Acesso não autorizado."}), 403
+
+    if 'foto' not in request.files:
+        return jsonify({"error": "Nenhum arquivo de imagem enviado."}), 400
+
+    file = request.files['foto']
+    if file.filename == '':
+        return jsonify({"error": "Nome de arquivo inválido."}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    content_type = file.content_type or "application/octet-stream"
+    nome_id = f"produtos/produto_{os.urandom(4).hex()}{ext}"
+    conteudo_binario = file.read()
+
+    if not VERCEL_BLOB_READ_WRITE_TOKEN:
+        return jsonify({"error": "Token BLOB_READ_WRITE_TOKEN ausente."}), 500
+
+    headers = {
+        "Authorization": f"Bearer {VERCEL_BLOB_READ_WRITE_TOKEN}",
+        "x-api-version": "1",
+        "Content-Type": content_type
+    }
+
+    try:
+        resposta = requests.put(f"https://blob.vercel-storage.com/{nome_id}", data=conteudo_binario, headers=headers)
+        if resposta.status_code == 200:
+            return jsonify({"url": resposta.json()["url"]}), 200
+        return jsonify({"error": f"Erro na API Vercel Blob: {resposta.text}"}), 500
     except Exception as e:
-        return jsonify({"status": "erro", "mensagem": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@app.route('/api/ponto/unidade/<cliente_id>', methods=['GET'])
-def historico_unidade(cliente_id):
-    # Busca por cliente_id para alimentar perfeitamente as tabelas do gestor.html
-    docs = db.collection('pontos').where('cliente_id', '==', cliente_id).get()
-    lista = [d.to_dict() for d in docs]
-    lista.sort(key=lambda x: x.get('timestamp_servidor', ''), reverse=True)
-    return jsonify(lista)
+# ======================================================================
+# ENDPOINT DE GERENCIAMENTO DE PRODUTOS (GET / POST)
+# ======================================================================
+@app.route("/api/produtos", methods=["GET", "POST"])
+def gerenciar_produtos():
+    if request.method == "POST":
+        token_sessao = request.headers.get("Authorization")
+        if token_sessao != "Bearer sessao_valida_lari_premium":
+            return jsonify({"error": "Acesso não autorizado."}), 403
+
+        dados = request.get_json() or {}
+        id_produto = dados.get("id_produto")
+        nome = dados.get("nome")
+        preco = dados.get("preco")
+        categoria = dados.get("categoria")
+        foto = dados.get("foto")
+        visivel = dados.get("visivel") if dados.get("visivel") is not None else True
+
+        if not id_produto or not nome or preco is None:
+            return jsonify({"error": "Metadados essenciais incompletos."}), 400
+
+        try:
+            conn = obter_conexao()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO produtos (id_produto, nome, preco, categoria, foto, visivel)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (id_produto) DO UPDATE 
+                SET nome = EXCLUDED.nome, preco = EXCLUDED.preco, 
+                    categoria = EXCLUDED.categoria, foto = EXCLUDED.foto, visivel = EXCLUDED.visivel;
+            """, (str(id_produto).strip(), nome, float(preco), categoria, foto, bool(visivel)))
+            cursor.close()
+            conn.close()
+            return jsonify({"status": "success"}), 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # Execução do método GET
+    try:
+        conn = obter_conexao()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id_produto, nome, preco, categoria, foto, visivel FROM produtos ORDER BY nome ASC;")
+        registros = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Converte o formato Decimal/Numeric do banco para float puro antes de serializar em JSON
+        for r in registros:
+            r['preco'] = float(r['preco'])
+
+        return jsonify(registros), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ======================================================================
+# ENDPOINT DE EXCLUSÃO DE PRODUTO (DELETE)
+# ======================================================================
+@app.route("/api/produtos/<path:id_prod>", methods=["DELETE"])
+def remover_produto_banco(id_prod):
+    token_sessao = request.headers.get("Authorization")
+    if token_sessao != "Bearer sessao_valida_lari_premium":
+        return jsonify({"error": "Acesso não autorizado."}), 403
+
+    id_limpo = str(id_prod).strip()
+
+    try:
+        conn = obter_conexao()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM produtos WHERE id_produto = %s;", (id_limpo,))
+        cursor.close()
+        conn.close()
+        return jsonify({"status": "success", "message": f"Produto {id_limpo} removido com sucesso."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ======================================================================
+# MANIPULADOR DE ERRO GLOBAL (404)
+# ======================================================================
+@app.errorhandler(404)
+def rota_nao_encontrada(e):
+    return jsonify({"error": "Endpoint não encontrado no subsistema de backend.", "status": "API Ativa"}), 404
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
