@@ -1,5 +1,3 @@
-Flask==3.0.0
-pytz
+flask
 flask-cors
-pg8000
-requests
+firebase-admin
